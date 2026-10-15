@@ -1,7 +1,7 @@
 # Regional Boxes for Forge Neo
 # Entry point: the Regional Boxes panel in txt2img and img2img. The panel itself runs in the browser
 # (javascript/regional_boxes.js) and writes the prompt; the script only draws the boxes into the img2img input when
-# the panel is in "Marks on image" mode. Nothing of Forge Neo is patched.
+# the panel is in "Marks on image" mode and the loaded model is Qwen-Image 2.1. Nothing of Forge Neo is patched.
 
 import sys
 from pathlib import Path
@@ -36,11 +36,12 @@ class RegionalBoxesScript(scripts.Script):
                               elem_classes=["regional-boxes-data"])
         return [data]
 
-    def before_process(self, p, data="", *args):
+    def before_process_init_images(self, p, pp, data="", *args, **kwargs):
+        # img2img only, once the model is loaded (before_process runs before Forge loads a newly picked checkpoint) and
+        # before Forge resizes and encodes the input: the marks become part of the picture the model edits
         boxes = marks.parse(data)
         init_images = getattr(p, "init_images", None)
-        if not boxes or not init_images:
+        if not boxes or not init_images or not marks.is_qwen21(getattr(p, "sd_model", None)):
             return
-        # before Forge resizes and encodes the input: the marks become part of the picture the model edits
         p.init_images = [marks.draw(image, boxes) for image in init_images]
         p.extra_generation_params[INFOTEXT] = f"marks ({marks.describe(boxes)})"

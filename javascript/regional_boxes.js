@@ -4,8 +4,10 @@
 //   Coordinates (FLUX 3 Image Klein): a JSON list at the end of the prompt (Black Forest Labs' bounding box guide)
 //     layout:    {"id", "bbox": [top, left, bottom, right], "desc"}
 //     box edit:  {"id", "from": "target" | "ref_image_N", "src_bbox", "tgt_bbox" (null removes), "desc"}
-//   Marks on image (Qwen-Image 2.1 and edit models that read marks): the boxes drawn into the img2img input in
-//     named colors (scripts/regional_boxes.py), and a note per box in the prompt: "Inside the red box: ...".
+//   Marks on image (Qwen-Image 2.1): the boxes drawn into the img2img input in named colors
+//     (scripts/regional_boxes.py), and a note per box in the prompt: "Inside the red box: ...".
+//
+// Only these two models: the others tested (Krea 2, Anima) do not follow boxes in either form.
 //
 // Boxes are on a 0-1000 grid of the picture. The pure functions at the top are shared with the tests
 // (tests/js/regional_boxes_test.js).
@@ -19,7 +21,7 @@
         ref: "ref",           // box edit: from a reference, src_bbox -> tgt_bbox (move, keep, replace)
         remove: "remove",     // box edit: from a reference, src_bbox -> gone
     };
-    const FORMATS = {auto: "auto", coords: "coords", marks: "marks"};
+    const FORMATS = {auto: "auto", coords: "coords", marks: "marks", none: "none"};
     // the same names and order as PALETTE in lib_regional_boxes/marks.py: the note names the color the box is drawn in
     const PALETTE = [
         ["red", "#ff0000"], ["blue", "#0050ff"], ["green", "#00b400"], ["yellow", "#ffd400"],
@@ -159,10 +161,13 @@
         });
     }
 
-    // Auto: FLUX 3 reads coordinates; the other models get marks
+    // Auto: coordinates for FLUX 3, marks for Qwen-Image 2.1, nothing for the other models
     function resolveFormat(choice, preset, checkpoint) {
         if (choice === FORMATS.coords || choice === FORMATS.marks) return choice;
-        return /flux[-_.]?3/i.test(`${preset || ""} ${checkpoint || ""}`) ? FORMATS.coords : FORMATS.marks;
+        const loaded = `${preset || ""} ${checkpoint || ""}`;
+        if (/flux[-_.]?3/i.test(loaded)) return FORMATS.coords;
+        if (preset === "qwen21" || /qwen[\s_.-]*(image)?[\s_.-]*2[\s_.]?1/i.test(checkpoint || "")) return FORMATS.marks;
+        return FORMATS.none;
     }
 
     const api = {KINDS, FORMATS, PALETTE, buildLayout, writeLayout, readLayout, findLayoutSpan, elementJson, isComplete,
@@ -176,7 +181,7 @@
     // ---- the panel ----
 
     const LABELS = {place: "place", add: "add new", ref: "from reference", remove: "remove"};
-    const FORMAT_LABELS = {auto: "Auto (by the loaded model)", coords: "Coordinates in the prompt (FLUX 3)", marks: "Marks on the image (Qwen-Image 2.1)"};
+    const FORMAT_LABELS = {auto: "Auto (by the loaded model)", coords: "FLUX 3 Image Klein (coordinates in the prompt)", marks: "Qwen-Image 2.1 (marks on the picture)"};
 
     function el(tag, attrs, ...children) {
         const node = document.createElement(tag);
@@ -221,8 +226,9 @@
         const hint = el("div", {class: "regional-boxes-hint"});
         const list = el("div", {class: "regional-boxes-list"});
         const readButton = el("button", {class: "lg secondary gradio-button", onclick: () => read()}, "Read from prompt");
+        const writeButton = el("button", {class: "lg secondary gradio-button", onclick: () => write()}, "Write to prompt");
         const buttons = el("div", {class: "regional-boxes-buttons"},
-            el("button", {class: "lg secondary gradio-button", onclick: () => write()}, "Write to prompt"),
+            writeButton,
             readButton,
             el("button", {class: "lg secondary gradio-button", onclick: () => clear()}, "Clear"));
         host.append(top, hint, frame, list, buttons);
@@ -264,11 +270,15 @@
 
         function updateHint() {
             const fmt = format();
-            resolved.textContent = state.format === FORMATS.auto ? `→ ${fmt === FORMATS.coords ? "coordinates" : "marks"}` : "";
+            resolved.textContent = state.format !== FORMATS.auto ? ""
+                : fmt === FORMATS.coords ? "→ FLUX 3: coordinates" : fmt === FORMATS.marks ? "→ Qwen-Image 2.1: marks" : "→ this model reads no boxes";
             drawLabel.style.display = fmt === FORMATS.marks ? "" : "none";
             readButton.style.display = fmt === FORMATS.coords ? "" : "none";
+            writeButton.disabled = fmt === FORMATS.none;
             const armed = state.armed && state.elements[state.armed.i];
-            if (fmt === FORMATS.marks && tab !== "img2img") {
+            if (fmt === FORMATS.none) {
+                hint.textContent = "Regional Boxes works with FLUX 3 Image Klein and Qwen-Image 2.1: load one of them, or pick its format above.";
+            } else if (fmt === FORMATS.marks && tab !== "img2img") {
                 hint.textContent = "Marks are drawn on an input picture: use them in img2img. For a new picture, pick a model that reads coordinates (FLUX 3).";
             } else if (!armed && fmt === FORMATS.marks) {
                 hint.textContent = "Drag over the input picture to draw a box, and say what to do inside it. Write to prompt adds one note per box.";
@@ -388,8 +398,9 @@
         function write() {
             const ta = prompt();
             if (!ta) return;
-            if (format() === FORMATS.marks) setValue(ta, writeNotes(ta.value, buildNotes(state.elements)));
-            else setValue(ta, writeLayout(ta.value, buildLayout(state.elements)));
+            const fmt = format();
+            if (fmt === FORMATS.marks) setValue(ta, writeNotes(ta.value, buildNotes(state.elements)));
+            else if (fmt === FORMATS.coords) setValue(ta, writeLayout(ta.value, buildLayout(state.elements)));
             syncData();
         }
 

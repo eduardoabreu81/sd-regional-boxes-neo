@@ -11,7 +11,7 @@
 
 </div>
 
-Draw boxes with the mouse to tell the model where things go - and the panel hands them to the model in the format it was trained on: **coordinates in the prompt** for FLUX 3 Image Klein, **boxes drawn on the picture** for Qwen-Image 2.1. No coordinates to type, no image editor needed.
+Draw boxes with the mouse to tell **FLUX 3 Image Klein** or **Qwen-Image 2.1** where things go - the panel hands them to each model in the format it was trained on: **coordinates in the prompt** for FLUX 3, **boxes drawn on the picture** for Qwen-Image 2.1. No coordinates to type, no image editor needed.
 
 > [!Important]
 > This extension requires an up-to-date **Forge Neo** (the `neo` branch). It only writes the prompt and, for Qwen-style edits, draws the boxes on the input picture - nothing of Forge Neo is changed.
@@ -37,7 +37,7 @@ Draw boxes with the mouse to tell the model where things go - and the panel hand
 - **Regional Boxes panel** in txt2img and img2img - draw, name and describe boxes on a frame shaped like your picture.
 - **Coordinates** for FLUX 3 Image Klein - layouts and box edits, written into the prompt.
 - **Marks on the image** for Qwen-Image 2.1 - the boxes are drawn on the input picture when you generate, with a note per box in the prompt.
-- **Auto** format - picks the right one for the loaded model.
+- **Auto** format - picks the right one for the loaded model, FLUX 3 or Qwen-Image 2.1.
 
 ---
 
@@ -58,7 +58,8 @@ Draw boxes with the mouse to tell the model where things go - and the panel hand
 
 - Draw over the img2img picture and say what to do inside each box: *add a cactus*, *change the shirt to denim*, *remove it*
 - **Write to prompt** adds one note per box - *"Inside the red box: ..."* - and asks the model to remove the outlines
-- When you generate, the boxes are drawn on a copy of the input picture in their colors; your file is not touched
+- When you generate, the boxes are drawn on a copy of the input picture in their colors - only with Qwen-Image 2.1 loaded; your file is not touched
+- Works with Forge Neo's own Qwen-Image 2.1 support and with the [Qwen-Image 2.1 extension](https://github.com/eduardoabreu81/qwen2.1-forge-neo)
 - Up to 8 boxes, each in its own named color (red, blue, green, yellow, magenta, orange, cyan, purple)
 
 ### 🛡️ Safe by Design
@@ -71,18 +72,16 @@ Draw boxes with the mouse to tell the model where things go - and the panel hand
 
 ## 🤖 Which Models
 
-<p align="center"><img src=".github/images/models.jpg" alt="Coordinates and marks on FLUX 3, Qwen-Image 2.1, Krea 2 and Anima" width="720"></p>
+<p align="center"><img src=".github/images/models.jpg" alt="Top: the teapot and vase layout as coordinates, on FLUX 3 and on Qwen-Image 2.1. Bottom: the cactus box drawn on the picture, on FLUX 3 and on Qwen-Image 2.1" width="560"></p>
 
-Each model understands boxes in its own way - or not at all. Tested on an 8 GB RTX 2070:
+Regional Boxes works with two models, each in the format it was trained on. Tested on an 8 GB RTX 2070:
 
-| Model | Coordinates | Marks on the image |
+| Model | Format | |
 | :--- | :--- | :--- |
-| **FLUX 3 Image Klein** | ✅ | ❌ the box becomes part of the picture |
-| **Qwen-Image 2.1** | ❌ ignored | ✅ |
-| **Krea 2** | ❌ ignored | ⚠️ follows the box loosely, keeps the outline |
-| **Anima** | ❌ ignored | - edits only with an Edit LoRA |
+| **FLUX 3 Image Klein** | Coordinates in the prompt | ✅ top left: things land in their boxes |
+| **Qwen-Image 2.1** | Marks on the picture | ✅ bottom right: the cactus in the box, the outline gone |
 
-**Auto** uses coordinates for FLUX 3 and marks for every other model. FLUX.1 Kontext is documented to follow marks drawn on the picture, but it was not tested here. For models without boxes of their own, region tools that steer the model's attention work instead: [Forge Couple](https://github.com/Haoming02/sd-forge-couple) (SD 1.5, SDXL, Anima) and [Regional Prompter](https://github.com/hako-mikan/sd-webui-regional-prompter) (also Z-Image and Krea 2).
+Neither model follows the other's format (top right, bottom left), so **Auto** picks the format by the loaded model. With any other model the panel says so and writes nothing. For SD 1.5, SDXL, Anima, Z-Image and Krea 2, region tools that steer the model's attention work instead: [Forge Couple](https://github.com/Haoming02/sd-forge-couple) and [Regional Prompter](https://github.com/hako-mikan/sd-webui-regional-prompter).
 
 ---
 
@@ -97,7 +96,7 @@ Each model understands boxes in its own way - or not at all. Tested on an 8 GB R
 
 ## 🖱️ How to Use
 
-1. Open **Regional Boxes** in txt2img or img2img - the format follows the loaded model, or pick it yourself
+1. Load FLUX 3 Image Klein or Qwen-Image 2.1, and open **Regional Boxes** in txt2img or img2img - the format follows the loaded model, or pick it yourself
 2. Drag on the frame to draw a box; in img2img the input picture shows behind it
 3. Describe each box - what it is (coordinates) or what to do inside it (marks)
 4. Click **Write to prompt**, then **Generate**

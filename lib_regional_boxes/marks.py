@@ -1,6 +1,6 @@
 # Regional Boxes for Forge Neo
-# "Marks on image": the boxes drawn into the img2img input, in named colors, for the edit models that read marks
-# drawn on the picture plus a note in the prompt ("Inside the red box: ..."), such as Qwen-Image 2.1.
+# "Marks on image": the boxes drawn into the img2img input, in named colors, for Qwen-Image 2.1, which reads marks
+# drawn on the picture plus a note in the prompt ("Inside the red box: ...").
 #
 # The panel (javascript/regional_boxes.js) sends the boxes as JSON in a hidden textbox; this module reads them and
 # draws them on a copy of each input picture. No Forge imports: the CPU tests run it as it is.
@@ -23,6 +23,14 @@ PALETTE = {
 }
 
 FORMAT_MARKS = "marks"
+
+# the diffusion engines of Qwen-Image 2.1: Forge Neo's own, and the qwen2.1-forge-neo extension's
+QWEN21_ENGINES = ("QwenImage21", "QwenImage21Engine")
+
+
+def is_qwen21(sd_model) -> bool:
+    """Whether the loaded model is Qwen-Image 2.1, the model the marks are drawn for."""
+    return any(cls.__name__ in QWEN21_ENGINES for cls in type(sd_model).__mro__)
 
 
 def parse(data: str) -> list[tuple[str, tuple[int, int, int, int]]]:

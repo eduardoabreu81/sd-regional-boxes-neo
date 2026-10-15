@@ -118,12 +118,19 @@ const tests = {
     },
 
     // ---- auto format ----
-    "auto picks coordinates for FLUX 3 and marks for the others"() {
+    "auto: coordinates for FLUX 3, marks for Qwen-Image 2.1, nothing for the others"() {
         assert.equal(R.resolveFormat("auto", "flux3", "anything"), "coords");
         assert.equal(R.resolveFormat("auto", "klein", "flux3_image_klein_sd_int8_convrot.safetensors"), "coords");
-        assert.equal(R.resolveFormat("auto", "qwen21", "Qwen 2.1\\qwen_image_2.1_turbo_int8_convrot.safetensors"), "marks");
-        assert.equal(R.resolveFormat("auto", "klein", "flux-2-klein-9b.safetensors"), "marks");
-        assert.equal(R.resolveFormat("marks", "flux3", ""), "marks");
+        for (const ckpt of ["Qwen 2.1\qwen_image_2.1_turbo_int8_convrot.safetensors", "Qwen 2.1\qwenImage21Turbo8_v10.safetensors",
+            "qwen21Finalcut66GB25_v10.safetensors"]) {
+            assert.equal(R.resolveFormat("auto", "sd", ckpt), "marks", ckpt);
+        }
+        assert.equal(R.resolveFormat("auto", "qwen21", "noctQUncensoredRealism_int8.safetensors"), "marks");
+        for (const [preset, ckpt] of [["krea", "Krea\museByStableYogi_v35Int8Extended.safetensors"], ["anima", "anima_baseV10.safetensors"],
+            ["klein", "flux-2-klein-9b.safetensors"], ["qwen", "Qwen-Image-Edit-2509.safetensors"], ["xl", ""]]) {
+            assert.equal(R.resolveFormat("auto", preset, ckpt), "none", ckpt);
+        }
+        assert.equal(R.resolveFormat("marks", "krea", ""), "marks");
         assert.equal(R.resolveFormat("coords", "qwen21", ""), "coords");
     },
 };

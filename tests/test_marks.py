@@ -68,6 +68,17 @@ class TestDraw(unittest.TestCase):
             self.assertIn(f'["{name}", ', source)
 
 
+class TestModel(unittest.TestCase):
+    def test_qwen21_engines(self):
+        QwenImage21 = type("QwenImage21", (), {})
+        QwenImage21Engine = type("QwenImage21Engine", (), {})
+        Subclass = type("Custom", (QwenImage21,), {})
+        for engine in (QwenImage21, QwenImage21Engine, Subclass):
+            self.assertTrue(marks.is_qwen21(engine()), engine)
+        for other in (type("Flux3Engine", (), {})(), type("Krea2", (), {})(), None):
+            self.assertFalse(marks.is_qwen21(other), other)
+
+
 @unittest.skipIf(NODE is None, "node not installed")
 class TestPanel(unittest.TestCase):
     def test_panel_output(self):
