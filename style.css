@@ -1,0 +1,170 @@
+/* Regional Boxes for Forge Neo - the panel (javascript/regional_boxes.js) */
+
+.regional-boxes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.regional-boxes-hint {
+    font-size: 0.9em;
+    opacity: 0.8;
+}
+
+.regional-boxes-frame {
+    position: relative;
+    width: 100%;
+    max-width: 512px;
+    max-height: 640px;
+    margin: 0 auto;
+    aspect-ratio: 1 / 1;
+    background: repeating-conic-gradient(rgba(127, 127, 127, 0.18) 0% 25%, transparent 0% 50%) 50% / 32px 32px;
+    border: 1px solid var(--border-color-primary, #888);
+    border-radius: 4px;
+    cursor: crosshair;
+    user-select: none;
+    overflow: hidden;
+}
+
+.regional-boxes-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+    opacity: 0.75;
+    pointer-events: none;
+}
+
+.regional-boxes-boxes {
+    position: absolute;
+    inset: 0;
+}
+
+.regional-boxes-box {
+    position: absolute;
+    box-sizing: border-box;
+    border: 3px solid #fff;
+    pointer-events: none;
+}
+
+.regional-boxes-box.src {
+    border-style: dashed;
+}
+
+.regional-boxes-box.selected {
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+.regional-boxes-box.ghost {
+    border: 2px dashed #fff;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.regional-boxes-box span {
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 0 4px;
+    font-size: 11px;
+    line-height: 16px;
+    color: #000;
+    white-space: nowrap;
+}
+
+.regional-boxes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.regional-boxes-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    padding: 2px;
+    border-radius: 4px;
+}
+
+.regional-boxes-row.selected {
+    outline: 1px solid var(--color-accent, #f97316);
+}
+
+.regional-boxes-row.incomplete {
+    opacity: 0.6;
+}
+
+.regional-boxes-row input[type=text],
+.regional-boxes-row select {
+    padding: 2px 6px;
+    border: 1px solid var(--border-color-primary, #888);
+    border-radius: 4px;
+    background: var(--input-background-fill, transparent);
+    color: inherit;
+}
+
+.regional-boxes-row input[type=text] {
+    width: 7em;
+}
+
+.regional-boxes-row input.regional-boxes-desc {
+    flex: 1;
+    min-width: 12em;
+}
+
+.regional-boxes-row button,
+.regional-boxes-buttons button {
+    padding: 2px 8px;
+}
+
+.regional-boxes-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    cursor: pointer;
+    flex: none;
+}
+
+.regional-boxes-buttons {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.regional-boxes-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.regional-boxes-top select {
+    padding: 2px 6px;
+    border: 1px solid var(--border-color-primary, #888);
+    border-radius: 4px;
+    background: var(--input-background-fill, transparent);
+    color: inherit;
+}
+
+.regional-boxes-resolved {
+    opacity: 0.7;
+    font-size: 0.9em;
+}
+
+.regional-boxes-draw {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.9em;
+}
+
+.regional-boxes-color {
+    width: 4.5em;
+    font-size: 0.9em;
+}
+
+/* the boxes for "Marks on image", written by the panel; a hidden Gradio component would not be rendered at all */
+.regional-boxes-data {
+    display: none !important;
+}

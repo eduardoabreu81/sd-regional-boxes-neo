@@ -1,0 +1,26 @@
+# Private session records, credentials and generated media
+.local/
+work/
+outputs/
+.env
+.env.*
+*.pem
+*.key
+
+# Python and tooling caches
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ruff_cache/
+.pytest_cache/
+.codegraph/
+
+# Local packages and model weights
+*.zip
+*.safetensors
+*.gguf
+
+# Local agent notes and docs
+AGENTS*.md
+docs/
