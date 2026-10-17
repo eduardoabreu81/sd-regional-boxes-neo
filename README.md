@@ -4,7 +4,7 @@
 
 [![Forge Neo](https://img.shields.io/badge/Forge-Neo-blue)](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)
 [![Gradio](https://img.shields.io/badge/Gradio-4.40.0-orange)](https://gradio.app/)
-[![Version](https://img.shields.io/badge/Version-0.2.0-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
+[![Version](https://img.shields.io/badge/Version-0.2.1-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
 
 > **Extension for [Stable Diffusion WebUI Forge - Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)**
@@ -31,6 +31,11 @@ Draw boxes with the mouse to tell **FLUX 3 Image Klein**, **Qwen-Image 2.1** or 
 ---
 
 ## 🆕 What's New
+
+### v0.2.1 - Layouts Follow the Picture Size
+
+- **MOSS-Image layouts follow the size** - change **Width** and **Height**, or switch img2img to **Resize by**, and the boxes in the prompt move to fit the new size on their own
+- In img2img, the size is the one Forge Neo will really use, also with **Resize by**
 
 ### v0.2.0 - MOSS-Image
 
@@ -81,6 +86,8 @@ Draw boxes with the mouse to tell **FLUX 3 Image Klein**, **Qwen-Image 2.1** or 
 - Under each box, its edges in pixels from the center of the picture, as the layout uses them - type a number to set an edge exactly
 - **Read from prompt** loads a layout back, yours or one you pasted, to adjust it
 - LoRA tags such as `<lora:name:1>` stay after the layout, where Forge Neo still finds them
+- Change the size and the layout follows: the boxes in the prompt are moved to fit, and the panel says so
+- In img2img, draw over the input picture and describe the new version: things keep their place, while captions and words can change
 - Works in txt2img and img2img; needs the [MOSS-Image extension](https://github.com/eduardoabreu81/moss-image-forge-neo) 0.1.2 or newer, which keeps the layout whole with sd-dynamic-prompts installed
 
 ### 🛡️ Safe by Design
@@ -134,7 +141,7 @@ For edits, use img2img with **Denoising strength** 1 and the model's reference o
 - Click a box without dragging to select it; **Redraw** draws it again; ✕ deletes it
 - Writing again replaces the boxes already in the prompt, so draw, adjust and write as often as you like
 - The frame takes the shape of your **Width** and **Height**
-- MOSS-Image layouts are in pixels of the size they were written for: after changing **Width** or **Height**, click **Write to prompt** again - the panel reminds you
+- MOSS-Image layouts are in pixels of the picture's size, so a new size moves the boxes in the prompt with it; if you changed the boxes' numbers by hand in the prompt, they are left as they are and the panel asks you to **Write to prompt** again
 - With MOSS-Image, write the scene description in English for the best results, and give text boxes room for their words
 
 ---

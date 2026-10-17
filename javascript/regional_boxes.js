@@ -281,6 +281,26 @@
             (o.bbox[0] < -cy || o.bbox[1] < -cx || o.bbox[2] > h - cy || o.bbox[3] > w - cx));
     }
 
+    // the layout with the panel's boxes moved to a to = [w, h] picture, or null when its boxes are not the ones the panel
+    // wrote for from = [w, h] (edited by hand, or another layout): the boxes are recomputed from the panel's own, so going
+    // back and forth between sizes never drifts, and anything else in the layout (captions, words) is kept as it is
+    function rescaleMoss(prompt, elements, from, to) {
+        const layout = parseMoss(prompt);
+        const done = elements.filter(isMossComplete);
+        if (!layout || done.length !== layout.items.length) return null;
+        const ours = layout.items.every((o, i) => Array.isArray(o && o.bbox) &&
+            JSON.stringify(o.bbox) === JSON.stringify(mossBox(done[i].tgt, from[0], from[1])));
+        if (!ours) return null;
+        layout.items.forEach((o, i) => { o.bbox = mossBox(done[i].tgt, to[0], to[1]); });
+        return [JSON.stringify(layout), splitTags(prompt).tags.join(" ")].filter(Boolean).join(" ");
+    }
+
+    // img2img's "Resize by" size, from Forge's own preview: "resize: from 1024x768 to 1536x1152"
+    function resizeByTarget(preview) {
+        const m = /to\s*(\d+)\s*x\s*(\d+)/.exec(String(preview || ""));
+        return m && +m[1] > 0 && +m[2] > 0 ? [+m[1], +m[2]] : null;
+    }
+
     // Auto: coordinates for FLUX 3, marks for Qwen-Image 2.1, layout JSON for MOSS-Image, nothing for the other models
     function resolveFormat(choice, preset, checkpoint) {
         if (choice === FORMATS.coords || choice === FORMATS.marks || choice === FORMATS.moss) return choice;
@@ -293,7 +313,7 @@
 
     const api = {KINDS, FORMATS, PALETTE, buildLayout, writeLayout, readLayout, findLayoutSpan, elementJson, isComplete,
         buildNotes, writeNotes, marksPayload, MOSS_LABELS, MOSS_CANVASES, mossBox, gridBox, isMossComplete, parseMoss,
-        mossCaption, parseMeta, writeMoss, readMoss, mossOutOfBounds, resolveFormat};
+        mossCaption, parseMeta, writeMoss, readMoss, mossOutOfBounds, rescaleMoss, resizeByTarget, resolveFormat};
     if (typeof module !== "undefined" && module.exports) {
         module.exports = api;
         return;
@@ -335,7 +355,7 @@
         // armed: {i, which} for the next drag; color: palette index, kept for life so a note's color never changes
         // written: the [Width, Height] the MOSS layout in the prompt was written or read at
         const state = {elements: [], selected: -1, armed: null, counter: 0, format: FORMATS.auto, draw: true,
-            meta: "", canvas: "single", written: null};
+            meta: "", canvas: "single", written: null, note: ""};
         let listedSize = "";
 
         const formatSelect = el("select", {class: "regional-boxes-format", onchange: (ev) => { state.format = ev.target.value; render(); }},
@@ -370,7 +390,26 @@
         const format = () => resolveFormat(state.format,
             app.querySelector("#forge_ui_preset input")?.value, app.querySelector("#setting_sd_model_checkpoint input")?.value);
 
-        const size = () => [numberOf(app, `${tab}_width`, 1024), numberOf(app, `${tab}_height`, 1024)];
+        // the size of the picture to make: Width x Height, or in img2img's "Resize by" tab the size Forge shows it will be
+        function size() {
+            if (tab === "img2img" && /resize by/i.test(app.querySelector("#img2img_tabs_resize button.selected")?.textContent || "")) {
+                const by = resizeByTarget(app.querySelector("#img2img_scale_resolution_preview")?.textContent);
+                if (by) return by;
+            }
+            return [numberOf(app, `${tab}_width`, 1024), numberOf(app, `${tab}_height`, 1024)];
+        }
+
+        // a new size: the MOSS layout in the prompt follows it, when its boxes are still the panel's
+        function rescale() {
+            const ta = prompt();
+            const [w, h] = size();
+            if (format() !== FORMATS.moss || !ta || !state.written || (state.written[0] === w && state.written[1] === h)) return;
+            const next = rescaleMoss(ta.value, state.elements, state.written, [w, h]);
+            if (!next) return;
+            state.note = `The layout's boxes were moved to fit the new size, ${w}x${h}.`;
+            state.written = [w, h];
+            setValue(ta, next);
+        }
 
         // MOSS boxes are pixels of the Width x Height they were written at: say so when the size has changed since
         function checkSize() {
@@ -380,11 +419,12 @@
             if (format() === FORMATS.moss && ta && parseMoss(ta.value)) {
                 const [ww, wh] = state.written || [];
                 if (state.written && (ww !== w || wh !== h)) {
-                    text = `⚠ The layout in the prompt was written for ${ww}x${wh}, and the picture is now ${w}x${h}: click Write to prompt again so the boxes match.`;
+                    text = `⚠ The layout in the prompt was written for ${ww}x${wh}, and the picture is now ${w}x${h}; its boxes were changed by hand, so they were not moved: click Write to prompt again so they match.`;
                 } else if (mossOutOfBounds(ta.value, w, h)) {
                     text = `⚠ The layout in the prompt has boxes past the ${w}x${h} picture: it was written for another size. Set that size, or Read it and Write to prompt again.`;
                 }
             }
+            if (!text && state.note && format() === FORMATS.moss && ta && parseMoss(ta.value)) text = `✓ ${state.note}`;
             warning.textContent = text;
             warning.style.display = text ? "" : "none";
         }
@@ -396,6 +436,7 @@
         }
 
         function fitFrame() {
+            rescale();
             const [w, h] = size();
             frame.style.aspectRatio = `${w} / ${h}`;
             // a tall picture hits the frame's max-height (640px, style.css) first: narrow it too, or it would lose its shape
@@ -631,6 +672,7 @@
                 const [w, h] = size();
                 setValue(ta, writeMoss(ta.value, state.elements, w, h, {meta: parseMeta(state.meta), canvas: state.canvas}));
                 state.written = parseMoss(ta.value) ? [w, h] : null;
+                state.note = "";
                 checkSize();
             }
             syncData();
@@ -646,6 +688,7 @@
                 state.meta = metaInput.value = layout ? layout.meta : "";
                 state.canvas = canvasSelect.value = layout ? layout.canvas : "single";
                 state.written = layout ? [w, h] : null;
+                state.note = "";
             } else {
                 state.elements = readLayout(ta.value);
             }
@@ -719,6 +762,12 @@
             if (node) node.addEventListener("input", fitFrame);
         }
         prompt()?.addEventListener("input", checkSize);
+        if (tab === "img2img") {
+            // "Resize to" / "Resize by", the scale and the input picture all change the size Forge's preview shows
+            app.querySelector("#img2img_tabs_resize")?.addEventListener("click", () => setTimeout(fitFrame, 100));
+            const preview = app.querySelector("#img2img_scale_resolution_preview");
+            if (preview) new MutationObserver(() => fitFrame()).observe(preview, {childList: true, subtree: true, characterData: true});
+        }
         // in Auto the format follows the loaded model: the list is rebuilt only when the effective format changes, since
         // rebuilding it on every click would drop the focus of the field being clicked
         let shown = null;

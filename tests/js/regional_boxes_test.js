@@ -198,6 +198,38 @@ const tests = {
         assert.equal(R.writeMoss(twice, [], 1024, 1024, {}), "A snowy field. <lora:style:0.5> <lora:moss_sft_8step_dmd:1>");
     },
 
+    "MOSS: a new size moves the panel's boxes, there and back without drift"() {
+        const els = [{label: "text", desc: "Title.", text: "WINTER FOX", tgt: [80, 80, 200, 920]},
+            {label: "object", desc: "A fox.", tgt: [280, 120, 840, 880]}];
+        const written = R.writeMoss("A poster. <lora:moss_sft_8step_dmd:1>", els, 832, 1248, {meta: ["poster"]});
+        const square = R.rescaleMoss(written, els, [832, 1248], [1024, 1024]);
+        assert.deepEqual(JSON.parse(square.slice(0, square.lastIndexOf("}") + 1)).items.map((o) => o.bbox),
+            els.map((e) => R.mossBox(e.tgt, 1024, 1024)));
+        assert.ok(square.endsWith("} <lora:moss_sft_8step_dmd:1>"), square);
+        assert.equal(R.rescaleMoss(square, els, [1024, 1024], [832, 1248]), written);
+        // a caption or the words changed by hand in the prompt are kept
+        const edited = written.replace("WINTER FOX", "SNOW FOX").replace('"A fox."', '"A sleepy fox."');
+        const moved = R.rescaleMoss(edited, els, [832, 1248], [1024, 1024]);
+        assert.ok(moved.includes('"text":"SNOW FOX"') && moved.includes('"caption":"A sleepy fox."'), moved);
+    },
+
+    "MOSS: boxes changed by hand, or another layout, are not moved"() {
+        const els = [{label: "object", desc: "A fox.", tgt: [280, 120, 840, 880]}];
+        const written = R.writeMoss("A poster.", els, 832, 1248, {});
+        const byHand = written.replace(/"bbox":\[[^\]]*\]/, '"bbox":[-100,-100,100,100]');
+        assert.equal(R.rescaleMoss(byHand, els, [832, 1248], [1024, 1024]), null);
+        assert.equal(R.rescaleMoss(written, [...els, {label: "object", desc: "A tree.", tgt: [0, 0, 100, 100]}], [832, 1248], [1024, 1024]), null);
+        assert.equal(R.rescaleMoss(written, els, [1024, 1024], [832, 1248]), null);
+        assert.equal(R.rescaleMoss("A poster.", els, [832, 1248], [1024, 1024]), null);
+    },
+
+    "img2img Resize by: the size from Forge's preview"() {
+        assert.deepEqual(R.resizeByTarget("resize: from 1024x768 to 1536x1152"), [1536, 1152]);
+        assert.deepEqual(R.resizeByTarget("resize: from 832x1248 to 832x1248"), [832, 1248]);
+        assert.equal(R.resizeByTarget("no image selected"), null);
+        assert.equal(R.resizeByTarget(undefined), null);
+    },
+
     "MOSS: only a layout is read, and boxes past the picture are noticed"() {
         for (const prompt of ["A cat on a sofa.", '{"summary": ', '[{"id": "a", "bbox": [0, 0, 9, 9], "desc": ""}]', '{"items": []}', ""]) {
             assert.equal(R.parseMoss(prompt), null, prompt);
