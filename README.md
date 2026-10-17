@@ -90,6 +90,9 @@ Draw boxes with the mouse to tell **FLUX 3 Image Klein**, **Qwen-Image 2.1** or 
 - In img2img, draw over the input picture and describe the new version: things keep their place, while captions and words can change
 - Works in txt2img and img2img; needs the [MOSS-Image extension](https://github.com/eduardoabreu81/moss-image-forge-neo) 0.1.2 or newer, which keeps the layout whole with sd-dynamic-prompts installed
 
+<p align="center"><img src=".github/images/moss_txt2img.jpg" alt="The MOSS-Image poster made in txt2img: WINTER FOX, a red fox, FORGE NEO" width="300"> <img src=".github/images/moss_img2img.jpg" alt="The same poster in img2img with the same boxes: ARCTIC FOX and a white arctic fox" width="300"></p>
+<p align="center"><sub>txt2img, then the same boxes in img2img with a new title and an arctic fox - 8-step LoRA, RTX 2070</sub></p>
+
 ### 🛡️ Safe by Design
 
 - Changes no Forge Neo file and adds no generation setting of its own
