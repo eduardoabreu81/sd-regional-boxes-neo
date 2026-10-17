@@ -84,7 +84,7 @@ Draw boxes with the mouse to tell **FLUX 3 Image Klein**, **Qwen-Image 2.1** or 
 
 ### 🧩 Layout Prompts (MOSS-Image)
 
-<p align="center"><img src=".github/images/moss.jpg" alt="Left: a title box, an object box and a subtitle box in the panel. Right: the MOSS-Image poster made from them, with WINTER FOX at the top, a fox in the middle and FORGE NEO at the bottom" width="720"></p>
+<p align="center"><img src=".github/images/panel_moss.jpg" alt="The Regional Boxes panel with a MOSS-Image layout: a title, a fox and a subtitle box over the input poster, each row with its pixels and the center buttons" width="760"></p>
 
 - Describe the whole scene in the prompt, then draw a box for each thing and each piece of text
 - For each box, choose what it holds - **object**, **character** or **text** - and say how it looks; a text box also takes the exact words to write, with Enter for a new line
