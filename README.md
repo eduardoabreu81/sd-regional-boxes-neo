@@ -4,7 +4,7 @@
 
 [![Forge Neo](https://img.shields.io/badge/Forge-Neo-blue)](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)
 [![Gradio](https://img.shields.io/badge/Gradio-4.40.0-orange)](https://gradio.app/)
-[![Version](https://img.shields.io/badge/Version-0.2.1-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
+[![Version](https://img.shields.io/badge/Version-0.2.2-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
 
 > **Extension for [Stable Diffusion WebUI Forge - Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)**
@@ -31,6 +31,13 @@ Draw boxes with the mouse to tell **FLUX 3 Image Klein**, **Qwen-Image 2.1** or 
 ---
 
 ## 🆕 What's New
+
+### v0.2.2 - Move and Resize Boxes
+
+- **Drag a box by its name tag** to move it, and by the corners of the selected box to resize it - with every format
+- Dragging anywhere else still draws a new box, also inside another one
+- **⇔ and ⇕** center a box across or down the picture, keeping its size
+- With MOSS-Image, a warning when the boxes in the panel are no longer the ones written in the prompt
 
 ### v0.2.1 - Layouts Follow the Picture Size
 
@@ -141,6 +148,8 @@ For edits, use img2img with **Denoising strength** 1 and the model's reference o
 
 - Boxes guide placement and size; they are not a mask, and the model may draw a little past them
 - Marks work best with a box drawn a bit larger than the thing to change
+- Drag a box by its name tag to move it, and by the corners of the selected box to resize it; dragging anywhere else draws a new box, even inside another one
+- **⇔** and **⇕** center a box across or down the picture, keeping its size
 - Click a box without dragging to select it; **Redraw** draws it again; ✕ deletes it
 - Writing again replaces the boxes already in the prompt, so draw, adjust and write as often as you like
 - The frame takes the shape of your **Width** and **Height**

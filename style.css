@@ -72,6 +72,28 @@
     white-space: nowrap;
 }
 
+/* the name tag moves the box; the box itself lets clicks through, so another box can be drawn inside it */
+.regional-boxes-box span.regional-boxes-tag {
+    pointer-events: auto;
+    cursor: move;
+}
+
+/* the corners of the selected box resize it */
+.regional-boxes-handle {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    box-sizing: border-box;
+    background: #fff;
+    border: 2px solid #000;
+    pointer-events: auto;
+}
+
+.regional-boxes-handle.nw { top: -6px; left: -6px; cursor: nwse-resize; }
+.regional-boxes-handle.ne { top: -6px; right: -6px; cursor: nesw-resize; }
+.regional-boxes-handle.sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
+.regional-boxes-handle.se { bottom: -6px; right: -6px; cursor: nwse-resize; }
+
 .regional-boxes-list {
     display: flex;
     flex-direction: column;
@@ -220,12 +242,19 @@
     font-size: 0.85em;
 }
 
+/* five characters ("-1024", up to -2048 at MOSS-Image's 4 megapixels) in the row's font: Gradio's theme sets 16px */
 .regional-boxes-row input.regional-boxes-coord {
-    width: 4.5em;
+    width: calc(5ch + 10px);
     padding: 1px 4px;
+    font-size: inherit;
     text-align: right;
 }
 
 .regional-boxes-coords-size {
     opacity: 0.7;
+}
+
+/* the center buttons, as small as the ✕ */
+.regional-boxes-row button.regional-boxes-center {
+    padding: 2px 6px;
 }

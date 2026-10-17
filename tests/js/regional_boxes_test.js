@@ -223,6 +223,37 @@ const tests = {
         assert.equal(R.rescaleMoss("A poster.", els, [832, 1248], [1024, 1024]), null);
     },
 
+    "a box moved by its tag stays whole inside the picture"() {
+        assert.deepEqual(R.moveBox([100, 100, 300, 400], 50, -20), [150, 80, 350, 380]);
+        assert.deepEqual(R.moveBox([100, 100, 300, 400], 900, 900), [800, 700, 1000, 1000]);
+        assert.deepEqual(R.moveBox([100, 100, 300, 400], -500, -500), [0, 0, 200, 300]);
+        // a box read from a layout keeps its exact edges
+        assert.deepEqual(R.moveBox([93.75, 125, 218.75, 875], 10, 0), [103.75, 125, 228.75, 875]);
+    },
+
+    "a box resized by a corner, flipped when dragged past the other side"() {
+        assert.deepEqual(R.resizeBox([100, 100, 300, 400], "se", [500, 600]), [100, 100, 500, 600]);
+        assert.deepEqual(R.resizeBox([100, 100, 300, 400], "nw", [50, 20]), [50, 20, 300, 400]);
+        assert.deepEqual(R.resizeBox([100, 100, 300, 400], "ne", [0, 1000]), [0, 100, 300, 1000]);
+        assert.deepEqual(R.resizeBox([100, 100, 300, 400], "sw", [0, 500]), [0, 400, 100, 500]);
+        // too thin to see: the box keeps its shape
+        assert.deepEqual(R.resizeBox([100, 100, 300, 400], "se", [105, 600]), [100, 100, 300, 400]);
+    },
+
+    "a box centered across or down the picture, in the layout's pixels"() {
+        // the box of the screenshot: [-380, -447, -195, 393] on 1024x1024
+        const box = R.gridBox([-380, -447, -195, 393], 1024, 1024);
+        assert.deepEqual(R.mossBox(R.centerBox(box, "x", 1024, 1024), 1024, 1024), [-380, -420, -195, 420]);
+        assert.deepEqual(R.mossBox(R.centerBox(box, "y", 1024, 1024), 1024, 1024), [-92, -447, 93, 393]);
+        // a poster: odd sizes stay one pixel apart at most, the size of the box is kept
+        const poster = R.gridBox([100, -300, 301, 101], 832, 1248);
+        assert.deepEqual(R.mossBox(R.centerBox(poster, "x", 832, 1248), 832, 1248), [100, -200, 301, 201]);
+        assert.deepEqual(R.mossBox(R.centerBox(poster, "y", 832, 1248), 832, 1248), [-100, -300, 101, 101]);
+        // centered twice: the same box
+        const once = R.centerBox(box, "x", 1024, 1024);
+        assert.deepEqual(R.centerBox(once, "x", 1024, 1024), once);
+    },
+
     "img2img Resize by: the size from Forge's preview"() {
         assert.deepEqual(R.resizeByTarget("resize: from 1024x768 to 1536x1152"), [1536, 1152]);
         assert.deepEqual(R.resizeByTarget("resize: from 832x1248 to 832x1248"), [832, 1248]);

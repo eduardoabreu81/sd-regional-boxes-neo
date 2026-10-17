@@ -295,6 +295,36 @@
         return [JSON.stringify(layout), splitTags(prompt).tags.join(" ")].filter(Boolean).join(" ");
     }
 
+    // ---- moving and resizing a drawn box (0-1000 grid) ----
+
+    // the box moved by [dy, dx], kept whole inside the picture
+    function moveBox(box, dy, dx) {
+        const [t, l, b, r] = exactBox(box);
+        const y = Math.max(-t, Math.min(1000 - b, dy)), x = Math.max(-l, Math.min(1000 - r, dx));
+        return [t + y, l + x, b + y, r + x];
+    }
+
+    // the box with one corner ("nw", "ne", "sw", "se") dragged to [y, x]; a box too thin to see keeps its old shape
+    function resizeBox(box, corner, [y, x]) {
+        let [t, l, b, r] = exactBox(box);
+        if (corner.includes("n")) t = y; else b = y;
+        if (corner.includes("w")) l = x; else r = x;
+        const next = exactBox([t, l, b, r]);
+        return next[2] - next[0] < 10 || next[3] - next[1] < 10 ? exactBox(box) : next;
+    }
+
+    // the box centered across ("x") or down ("y") a w x h picture, its size kept; worked out in the layout's pixels, so
+    // a MOSS-Image box comes out symmetric around the center (left = -right, one pixel apart at most for an odd width)
+    function centerBox(box, axis, w, h) {
+        const [y1, x1, y2, x2] = mossBox(box, w, h);
+        const [a, b] = axis === "x" ? [x1, x2] : [y1, y2];
+        const start = -Math.floor((b - a) / 2);
+        const pixels = axis === "x" ? [y1, start, y2, start + b - a] : [start, x1, start + b - a, x2];
+        const grid = gridBox(pixels, w, h);
+        const kept = exactBox(box);
+        return axis === "x" ? [kept[0], grid[1], kept[2], grid[3]] : [grid[0], kept[1], grid[2], kept[3]];
+    }
+
     // img2img's "Resize by" size, from Forge's own preview: "resize: from 1024x768 to 1536x1152"
     function resizeByTarget(preview) {
         const m = /to\s*(\d+)\s*x\s*(\d+)/.exec(String(preview || ""));
@@ -313,7 +343,8 @@
 
     const api = {KINDS, FORMATS, PALETTE, buildLayout, writeLayout, readLayout, findLayoutSpan, elementJson, isComplete,
         buildNotes, writeNotes, marksPayload, MOSS_LABELS, MOSS_CANVASES, mossBox, gridBox, isMossComplete, parseMoss,
-        mossCaption, parseMeta, writeMoss, readMoss, mossOutOfBounds, rescaleMoss, resizeByTarget, resolveFormat};
+        mossCaption, parseMeta, writeMoss, readMoss, mossOutOfBounds, rescaleMoss, moveBox, resizeBox, centerBox, resizeByTarget,
+        resolveFormat};
     if (typeof module !== "undefined" && module.exports) {
         module.exports = api;
         return;
@@ -422,6 +453,8 @@
                     text = `⚠ The layout in the prompt was written for ${ww}x${wh}, and the picture is now ${w}x${h}; its boxes were changed by hand, so they were not moved: click Write to prompt again so they match.`;
                 } else if (mossOutOfBounds(ta.value, w, h)) {
                     text = `⚠ The layout in the prompt has boxes past the ${w}x${h} picture: it was written for another size. Set that size, or Read it and Write to prompt again.`;
+                } else if (state.written && !rescaleMoss(ta.value, state.elements, state.written, state.written)) {
+                    text = "⚠ The boxes in the panel are not the ones in the prompt any more: click Write to prompt to update the layout.";
                 }
             }
             if (!text && state.note && format() === FORMATS.moss && ta && parseMoss(ta.value)) text = `✓ ${state.note}`;
@@ -506,9 +539,21 @@
                     if (!b || hidden) continue;
                     const [t, l, bo, r] = normBox(b);
                     const label = marks ? colorName(e) : moss ? `${i + 1} ${mossLabel(e)}` : which === "src" ? `${e.id} (from)` : e.id;
-                    const box = el("div", {class: `regional-boxes-box ${which}${i === state.selected ? " selected" : ""}`}, el("span", {}, label));
+                    // the name tag moves the box and the corners of the selected box resize it; the rest of the box stays
+                    // free, so a box can be drawn inside another
+                    const tag = el("span", {class: "regional-boxes-tag", title: "Drag to move the box",
+                        onmousedown: (ev) => grab(ev, i, which, "move")}, label);
+                    const box = el("div", {class: `regional-boxes-box ${which}${i === state.selected ? " selected" : ""}`}, tag);
                     Object.assign(box.style, {top: `${t / 10}%`, left: `${l / 10}%`, height: `${(bo - t) / 10}%`, width: `${(r - l) / 10}%`, borderColor: colorOf(e)});
-                    box.querySelector("span").style.background = colorOf(e);
+                    tag.style.background = colorOf(e);
+                    if (i === state.selected) {
+                        for (const corner of ["nw", "ne", "sw", "se"]) {
+                            const handle = el("div", {class: `regional-boxes-handle ${corner}`, title: "Drag to resize the box",
+                                onmousedown: (ev) => grab(ev, i, which, corner)});
+                            handle.style.borderColor = colorOf(e);
+                            box.append(handle);
+                        }
+                    }
                     layer.append(box);
                 }
             });
@@ -533,6 +578,7 @@
                         swatch, el("span", {class: "regional-boxes-color"}, colorName(e)),
                         el("input", {type: "text", class: "regional-boxes-desc", value: e.desc, placeholder: "What to do inside the box: add a red beanie, change the shirt to denim, remove it...",
                             oninput: (ev) => { e.desc = ev.target.value; row.classList.toggle("incomplete", !isMarked(e)); syncData(); }}),
+                        ...centerButtons(e),
                         el("button", {class: "secondary gradio-button", title: "Draw the box again", onclick: () => arm(i, "tgt")}, "Redraw"),
                         deleteButton);
                     list.append(row);
@@ -562,9 +608,23 @@
                     kind, ref,
                     needsSrc ? el("button", {class: "secondary gradio-button", title: "Draw where it is in the reference", onclick: () => arm(i, "src")}, e.src ? "Redraw from" : "Draw from") : "",
                     e.kind !== KINDS.remove ? el("button", {class: "secondary gradio-button", title: "Draw where it goes", onclick: () => arm(i, "tgt")}, e.tgt ? "Redraw" : "Draw") : "",
-                    tagButton, deleteButton);
+                    ...(e.kind !== KINDS.remove ? centerButtons(e) : []), tagButton, deleteButton);
                 list.append(row);
             });
+        }
+
+        // centers the box across or down the picture, keeping its size
+        function centerButtons(e) {
+            if (!e.tgt) return [];
+            const go = (axis) => {
+                const [w, h] = size();
+                e.tgt = centerBox(e.tgt, axis, w, h);
+                render();
+            };
+            return [el("button", {class: "secondary gradio-button regional-boxes-center", title: "Center the box across the picture",
+                onclick: () => go("x")}, "⇔"),
+            el("button", {class: "secondary gradio-button regional-boxes-center", title: "Center the box down the picture",
+                onclick: () => go("y")}, "⇕")];
         }
 
         function mossRow(e, i, swatch, deleteButton) {
@@ -615,7 +675,7 @@
             const cy = Math.floor(h / 2), cx = Math.floor(w / 2);
             return el("div", {class: "regional-boxes-coords", title: `On ${w}x${h}: y from ${-cy} to ${h - cy}, x from ${-cx} to ${w - cx}`},
                 ...names.flatMap((name, k) => [el("span", {}, name), inputs[k]]),
-                el("span", {class: "regional-boxes-coords-size"}, `px from the center, ${w}x${h}`));
+                el("span", {class: "regional-boxes-coords-size"}, `px from the center, ${w}x${h}`), ...centerButtons(e));
         }
 
         function render() {
@@ -704,6 +764,24 @@
         }
 
         let start = null, ghost = null;
+        // a box taken by its tag (mode "move") or by a corner ("nw", "ne", "sw", "se"): {i, which, mode, from, box}
+        let held = null;
+
+        function rawPoint(ev) {
+            const r = frame.getBoundingClientRect();
+            return [((ev.clientY - r.top) / r.height) * 1000, ((ev.clientX - r.left) / r.width) * 1000];
+        }
+
+        function grab(ev, i, which, mode) {
+            if (ev.button !== 0) return;
+            // the frame below would start a new box
+            ev.preventDefault();
+            ev.stopPropagation();
+            state.selected = i;
+            state.armed = null;
+            held = {i, which, mode, from: rawPoint(ev), box: state.elements[i][which]};
+            renderBoxes();
+        }
         frame.addEventListener("mousedown", (ev) => {
             if (ev.button !== 0) return;
             ev.preventDefault();
@@ -713,11 +791,24 @@
             layer.append(ghost);
         });
         window.addEventListener("mousemove", (ev) => {
+            if (held) {
+                const [y, x] = rawPoint(ev);
+                state.elements[held.i][held.which] = held.mode === "move"
+                    ? moveBox(held.box, Math.round(y - held.from[0]), Math.round(x - held.from[1]))
+                    : resizeBox(held.box, held.mode, [clamp(y), clamp(x)]);
+                renderBoxes();
+                return;
+            }
             if (!start || !ghost) return;
             const [t, l, b, r] = normBox([...start, ...point(ev)]);
             Object.assign(ghost.style, {top: `${t / 10}%`, left: `${l / 10}%`, height: `${(b - t) / 10}%`, width: `${(r - l) / 10}%`});
         });
         window.addEventListener("mouseup", (ev) => {
+            if (held) {
+                held = null;
+                render();
+                return;
+            }
             if (!start) return;
             const box = normBox([...start, ...point(ev)]);
             start = null;
