@@ -4,14 +4,14 @@
 
 [![Forge Neo](https://img.shields.io/badge/Forge-Neo-blue)](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)
 [![Gradio](https://img.shields.io/badge/Gradio-4.40.0-orange)](https://gradio.app/)
-[![Version](https://img.shields.io/badge/Version-0.1.0-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
+[![Version](https://img.shields.io/badge/Version-0.2.0-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
 
 > **Extension for [Stable Diffusion WebUI Forge - Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)**
 
 </div>
 
-Draw boxes with the mouse to tell **FLUX 3 Image Klein** or **Qwen-Image 2.1** where things go - the panel hands them to each model in the format it was trained on: **coordinates in the prompt** for FLUX 3, **boxes drawn on the picture** for Qwen-Image 2.1. No coordinates to type, no image editor needed.
+Draw boxes with the mouse to tell **FLUX 3 Image Klein**, **Qwen-Image 2.1** or **MOSS-Image** where things go - the panel hands them to each model in the format it was trained on: **coordinates in the prompt** for FLUX 3, **boxes drawn on the picture** for Qwen-Image 2.1, a **layout prompt** for MOSS-Image. No coordinates to type, no image editor needed.
 
 > [!Important]
 > This extension requires an up-to-date **Forge Neo** (the `neo` branch). It only writes the prompt and, for Qwen-style edits, draws the boxes on the input picture - nothing of Forge Neo is changed.
@@ -31,6 +31,14 @@ Draw boxes with the mouse to tell **FLUX 3 Image Klein** or **Qwen-Image 2.1** w
 ---
 
 ## 🆕 What's New
+
+### v0.2.0 - MOSS-Image
+
+- **Layout prompts** for MOSS-Image - draw boxes for things and for text, and the panel writes the whole prompt as MOSS-Image's layout
+- **Each box's position in pixels**, under its row - type a number to move an edge exactly where you want it
+- **Read from prompt** loads a MOSS-Image layout back into the panel, to adjust it
+- A warning when **Width** or **Height** changes after the layout was written
+- The frame keeps the shape of tall pictures
 
 ### v0.1.0 - First Release
 
@@ -62,6 +70,19 @@ Draw boxes with the mouse to tell **FLUX 3 Image Klein** or **Qwen-Image 2.1** w
 - Works with Forge Neo's own Qwen-Image 2.1 support and with the [Qwen-Image 2.1 extension](https://github.com/eduardoabreu81/qwen2.1-forge-neo)
 - Up to 8 boxes, each in its own named color (red, blue, green, yellow, magenta, orange, cyan, purple)
 
+### 🧩 Layout Prompts (MOSS-Image)
+
+<p align="center"><img src=".github/images/moss.jpg" alt="Left: a title box, an object box and a subtitle box in the panel. Right: the MOSS-Image poster made from them, with WINTER FOX at the top, a fox in the middle and FORGE NEO at the bottom" width="720"></p>
+
+- Describe the whole scene in the prompt, then draw a box for each thing and each piece of text
+- For each box, choose what it holds - **object**, **character** or **text** - and say how it looks; a text box also takes the exact words to write, with Enter for a new line
+- **Meta** says what kind of picture it is (*poster, flat illustration*, *product photo*...), and **Canvas** whether it is one picture, panels or a collage
+- **Write to prompt** turns it all into [MOSS-Image's layout](https://github.com/OpenMOSS/MOSS-Image/blob/main/USERGUIDE.md#layout-prompts-experimental), the way OpenMOSS's own tools write it; your description becomes the layout's caption
+- Under each box, its edges in pixels from the center of the picture, as the layout uses them - type a number to set an edge exactly
+- **Read from prompt** loads a layout back, yours or one you pasted, to adjust it
+- LoRA tags such as `<lora:name:1>` stay after the layout, where Forge Neo still finds them
+- Works in txt2img and img2img; needs the [MOSS-Image extension](https://github.com/eduardoabreu81/moss-image-forge-neo) 0.1.2 or newer, which keeps the layout whole with sd-dynamic-prompts installed
+
 ### 🛡️ Safe by Design
 
 - Changes no Forge Neo file and adds no generation setting of its own
@@ -74,14 +95,15 @@ Draw boxes with the mouse to tell **FLUX 3 Image Klein** or **Qwen-Image 2.1** w
 
 <p align="center"><img src=".github/images/models.jpg" alt="Top: the teapot and vase layout as coordinates, on FLUX 3 and on Qwen-Image 2.1. Bottom: the cactus box drawn on the picture, on FLUX 3 and on Qwen-Image 2.1" width="560"></p>
 
-Regional Boxes works with two models, each in the format it was trained on. Tested on an 8 GB RTX 2070:
+Regional Boxes works with three models, each in the format it was trained on. Tested on an 8 GB RTX 2070:
 
 | Model | Format | |
 | :--- | :--- | :--- |
 | **FLUX 3 Image Klein** | Coordinates in the prompt | ✅ top left: things land in their boxes |
 | **Qwen-Image 2.1** | Marks on the picture | ✅ bottom right: the cactus in the box, the outline gone |
+| **MOSS-Image** | Layout prompt | ✅ the poster above: title, fox and subtitle in their boxes |
 
-Neither model follows the other's format (top right, bottom left), so **Auto** picks the format by the loaded model. With any other model the panel says so and writes nothing. For SD 1.5, SDXL, Anima, Z-Image and Krea 2, region tools that steer the model's attention work instead: [Forge Couple](https://github.com/Haoming02/sd-forge-couple) and [Regional Prompter](https://github.com/hako-mikan/sd-webui-regional-prompter).
+FLUX 3 and Qwen-Image 2.1 do not follow each other's format (top right, bottom left), so **Auto** picks the format by the loaded model. With any other model the panel says so and writes nothing. For SD 1.5, SDXL, Anima, Z-Image and Krea 2, region tools that steer the model's attention work instead: [Forge Couple](https://github.com/Haoming02/sd-forge-couple) and [Regional Prompter](https://github.com/hako-mikan/sd-webui-regional-prompter).
 
 ---
 
@@ -96,9 +118,9 @@ Neither model follows the other's format (top right, bottom left), so **Auto** p
 
 ## 🖱️ How to Use
 
-1. Load FLUX 3 Image Klein or Qwen-Image 2.1, and open **Regional Boxes** in txt2img or img2img - the format follows the loaded model, or pick it yourself
-2. Drag on the frame to draw a box; in img2img the input picture shows behind it
-3. Describe each box - what it is (coordinates) or what to do inside it (marks)
+1. Load FLUX 3 Image Klein, Qwen-Image 2.1 or MOSS-Image, and open **Regional Boxes** in txt2img or img2img - the format follows the loaded model, or pick it yourself
+2. Set **Width** and **Height** first, then drag on the frame to draw a box; in img2img the input picture shows behind it
+3. Describe each box - what it is (coordinates, layout) or what to do inside it (marks)
 4. Click **Write to prompt**, then **Generate**
 
 For edits, use img2img with **Denoising strength** 1 and the model's reference option on (**[Qwen 2.1] Enable Reference**, **[Klein] Enable Reference**).
@@ -112,6 +134,8 @@ For edits, use img2img with **Denoising strength** 1 and the model's reference o
 - Click a box without dragging to select it; **Redraw** draws it again; ✕ deletes it
 - Writing again replaces the boxes already in the prompt, so draw, adjust and write as often as you like
 - The frame takes the shape of your **Width** and **Height**
+- MOSS-Image layouts are in pixels of the size they were written for: after changing **Width** or **Height**, click **Write to prompt** again - the panel reminds you
+- With MOSS-Image, write the scene description in English for the best results, and give text boxes room for their words
 
 ---
 
@@ -120,6 +144,7 @@ For edits, use img2img with **Denoising strength** 1 and the model's reference o
 - **[Forge Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)** by Haoming02
 - **[FLUX 3 Image Klein](https://huggingface.co/black-forest-labs/flux-3-image-klein)** by Black Forest Labs - the bounding box format, and the mug photo of the examples
 - **[Qwen-Image 2.1](https://huggingface.co/Qwen)** by the Qwen team - edits guided by marks on the picture
+- **[MOSS-Image](https://github.com/OpenMOSS/MOSS-Image)** by OpenMOSS - the layout prompt format
 
 ---
 

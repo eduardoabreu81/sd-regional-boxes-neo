@@ -1,5 +1,6 @@
 // Regional Boxes for Forge Neo
-// The panel's output: FLUX 3 coordinates in Black Forest Labs' exact format, and Qwen-style notes and marks.
+// The panel's output: FLUX 3 coordinates in Black Forest Labs' exact format, Qwen-style notes and marks, and
+// MOSS-Image layouts as OpenMOSS's own compiler writes them.
 // Run by tests/test_panel.py (node tests/js/regional_boxes_test.js).
 
 const assert = require("node:assert/strict");
@@ -117,8 +118,105 @@ const tests = {
         assert.deepEqual(R.PALETTE.map(([n]) => n), ["red", "blue", "green", "yellow", "magenta", "orange", "cyan", "purple"]);
     },
 
+    // ---- layout JSON (MOSS-Image) ----
+    "MOSS boxes: pixels from the center, in yxyx, as OpenMOSS's compiler"() {
+        // exact on the grid: 2000x1000, a box over the top-left quarter's lower half
+        assert.deepEqual(R.mossBox([250, 0, 1000, 500], 2000, 1000), [-250, -1000, 500, 0]);
+        // the cup of OpenMOSS's layout reference (1536x1024, draft [176, 224, 800, 864] -> [-288, -592, 352, 32]),
+        // from the panel's 0-1000 grid: top and left exact, bottom and right enclosed one pixel out at most
+        const grid = [224 / 1024, 176 / 1536, 864 / 1024, 800 / 1536].map((v) => Math.round(v * 1000));
+        assert.deepEqual(R.mossBox(grid, 1536, 1024), [-288, -592, 353, 33]);
+        // drawn backwards, and past the frame
+        assert.deepEqual(R.mossBox([1000, 1000, 0, 0], 1024, 1024), [-512, -512, 512, 512]);
+    },
+
+    "MOSS layout from a plain prompt: compact, in the official field order"() {
+        const prompt = R.writeMoss("A minimalist travel poster with a cream background.  ", [
+            {label: "text", desc: "Large dark-blue uppercase title.", text: "EXPLORE\nTHE ALPS", tgt: [0, 0, 250, 1000]},
+            {label: "object", desc: "A flat blue mountain.", tgt: [500, 250, 1000, 750]},
+            {label: "text", desc: "A subtitle with no words yet.", text: " ", tgt: [900, 0, 1000, 1000]},
+            {label: "object", desc: "", tgt: [0, 0, 10, 10]},
+            {label: "object", desc: "no box", tgt: null},
+        ], 1024, 1024, {meta: ["poster"], canvas: "single"});
+        assert.equal(prompt, '{"summary":{"meta":["poster"],"canvas":"single","caption":"A minimalist travel poster with a cream background."},' +
+            '"items":[{"label":"text","caption":"Large dark-blue uppercase title.","text":"EXPLORE\\nTHE ALPS","bbox":[-512,-512,-256,512]},' +
+            '{"label":"object","caption":"A flat blue mountain.","bbox":[0,-256,512,256]}],"bbox_coord_space":"abs_centralized","bbox_format":"yxyx"}');
+    },
+
+    "MOSS layout written again keeps its caption, meta and palette, and replaces the boxes"() {
+        const first = R.writeMoss("A photo of a desk.", [{label: "object", desc: "A lamp.", tgt: [0, 0, 500, 500]}], 1024, 1024,
+            {meta: ["photo"], canvas: "single"});
+        const withPalette = JSON.parse(first);
+        withPalette.summary.palette = ["oak", "brass"];
+        const second = JSON.parse(R.writeMoss(JSON.stringify(withPalette),
+            [{label: "character", desc: "A cat.", tgt: [500, 500, 1000, 1000]}], 1024, 1024, {meta: [], canvas: "collage"}));
+        assert.deepEqual(second.summary, {meta: ["photo"], canvas: "collage", caption: "A photo of a desk.", palette: ["oak", "brass"]});
+        assert.deepEqual(second.items, [{label: "character", caption: "A cat.", bbox: [0, 0, 512, 512]}]);
+    },
+
+    "MOSS layout without boxes turns back into its caption"() {
+        const layout = R.writeMoss("A quiet lake.", [{label: "object", desc: "A boat.", tgt: [1, 1, 500, 500]}], 1024, 1024, {});
+        assert.equal(R.writeMoss(layout, [], 1024, 1024, {}), "A quiet lake.");
+        assert.equal(R.writeMoss("A quiet lake.", [], 1024, 1024, {}), "A quiet lake.");
+        assert.equal(R.mossCaption(layout), "A quiet lake.");
+        assert.equal(JSON.parse(layout).summary.canvas, "single");
+    },
+
+    "reads OpenMOSS's travel poster example back"() {
+        const example = '{"summary": {"meta": ["poster"], "canvas": "single", "caption": "A minimalist travel poster."}, "items": [' +
+            '{"label": "text", "caption": "Large dark-blue uppercase title centered at the top.", "text": "EXPLORE", "bbox": [-416, -384, -288, 384]}, ' +
+            '{"label": "object", "caption": "A flat blue mountain illustration in the lower center.", "bbox": [-192, -288, 384, 288]}], ' +
+            '"bbox_coord_space": "abs_centralized", "bbox_format": "yxyx"}';
+        const read = R.readMoss(example, 1024, 1024);
+        assert.equal(read.meta, "poster");
+        assert.equal(read.canvas, "single");
+        assert.deepEqual(read.elements.map((e) => [e.label, e.text, e.tgt]),
+            [["text", "EXPLORE", [93.75, 125, 218.75, 875]], ["object", "", [312.5, 218.75, 875, 781.25]]]);
+        // Read then Write gives the same layout back, pixel for pixel, however many times
+        let prompt = example;
+        for (let n = 0; n < 3; n++) {
+            const again = R.readMoss(prompt, 1024, 1024);
+            prompt = R.writeMoss(prompt, again.elements, 1024, 1024, {meta: R.parseMeta(again.meta), canvas: again.canvas});
+        }
+        assert.deepEqual(JSON.parse(prompt), JSON.parse(example));
+        // and on a size that does not divide the grid
+        const poster = R.writeMoss("A poster.", [{label: "object", desc: "A fox.", tgt: [227, 115, 833, 901]}], 832, 1248, {});
+        const reread = R.readMoss(poster, 832, 1248);
+        assert.equal(R.writeMoss(poster, reread.elements, 832, 1248, {}), poster);
+    },
+
+    "MOSS: LoRA tags stay out of the layout, after it"() {
+        const box = [{label: "object", desc: "A fox.", tgt: [0, 0, 500, 500]}];
+        const once = R.writeMoss("A snowy field. <lora:moss_sft_8step_dmd:1>", box, 1024, 1024, {});
+        assert.ok(once.endsWith("} <lora:moss_sft_8step_dmd:1>"), once);
+        assert.equal(JSON.parse(once.slice(0, once.lastIndexOf("}") + 1)).summary.caption, "A snowy field.");
+        assert.equal(R.mossCaption(once), "A snowy field.");
+        assert.equal(R.readMoss(once, 1024, 1024).elements.length, 1);
+        // a tag added after the first Write is kept too, and without boxes the caption comes back with the tags
+        const twice = R.writeMoss(`<lora:style:0.5> ${once}`, box, 1024, 1024, {});
+        assert.ok(twice.endsWith("} <lora:style:0.5> <lora:moss_sft_8step_dmd:1>"), twice);
+        assert.equal(R.writeMoss(twice, [], 1024, 1024, {}), "A snowy field. <lora:style:0.5> <lora:moss_sft_8step_dmd:1>");
+    },
+
+    "MOSS: only a layout is read, and boxes past the picture are noticed"() {
+        for (const prompt of ["A cat on a sofa.", '{"summary": ', '[{"id": "a", "bbox": [0, 0, 9, 9], "desc": ""}]', '{"items": []}', ""]) {
+            assert.equal(R.parseMoss(prompt), null, prompt);
+            assert.equal(R.readMoss(prompt, 1024, 1024), null, prompt);
+        }
+        const layout = R.writeMoss("A street.", [{label: "object", desc: "A car.", tgt: [0, 0, 1000, 1000]}], 832, 1248, {});
+        assert.equal(R.mossOutOfBounds(layout, 832, 1248), false);
+        assert.equal(R.mossOutOfBounds(layout, 1024, 1024), true);
+        assert.equal(R.mossOutOfBounds("A street.", 512, 512), false);
+        assert.deepEqual(R.parseMeta(" poster,, flat illustration ,"), ["poster", "flat illustration"]);
+    },
+
     // ---- auto format ----
-    "auto: coordinates for FLUX 3, marks for Qwen-Image 2.1, nothing for the others"() {
+    "auto: coordinates for FLUX 3, marks for Qwen-Image 2.1, layout JSON for MOSS-Image, nothing for the others"() {
+        for (const [preset, ckpt] of [["moss", "anything.safetensors"], ["sd", "MOSS\\moss_image_sft_int8_convrot.safetensors"],
+            ["xl", "moss-image-base-bf16.safetensors"]]) {
+            assert.equal(R.resolveFormat("auto", preset, ckpt), "moss", ckpt);
+        }
+        assert.equal(R.resolveFormat("moss", "krea", ""), "moss");
         assert.equal(R.resolveFormat("auto", "flux3", "anything"), "coords");
         assert.equal(R.resolveFormat("auto", "klein", "flux3_image_klein_sd_int8_convrot.safetensors"), "coords");
         for (const ckpt of ["Qwen 2.1\qwen_image_2.1_turbo_int8_convrot.safetensors", "Qwen 2.1\qwenImage21Turbo8_v10.safetensors",

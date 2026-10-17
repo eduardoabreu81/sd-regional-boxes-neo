@@ -6,8 +6,10 @@
 //     box edit:  {"id", "from": "target" | "ref_image_N", "src_bbox", "tgt_bbox" (null removes), "desc"}
 //   Marks on image (Qwen-Image 2.1): the boxes drawn into the img2img input in named colors
 //     (scripts/regional_boxes.py), and a note per box in the prompt: "Inside the red box: ...".
+//   Layout JSON (MOSS-Image): the whole prompt becomes OpenMOSS's layout, the prompt's text as the scene caption
+//     {"summary", "items": [{"label", "caption", "text", "bbox"}]}, boxes in pixels from the picture's center.
 //
-// Only these two models: the others tested (Krea 2, Anima) do not follow boxes in either form.
+// Only these models: the others tested (Krea 2, Anima) do not follow boxes in any of these forms.
 //
 // Boxes are on a 0-1000 grid of the picture. The pure functions at the top are shared with the tests
 // (tests/js/regional_boxes_test.js).
@@ -21,7 +23,7 @@
         ref: "ref",           // box edit: from a reference, src_bbox -> tgt_bbox (move, keep, replace)
         remove: "remove",     // box edit: from a reference, src_bbox -> gone
     };
-    const FORMATS = {auto: "auto", coords: "coords", marks: "marks", none: "none"};
+    const FORMATS = {auto: "auto", coords: "coords", marks: "marks", moss: "moss", none: "none"};
     // the same names and order as PALETTE in lib_regional_boxes/marks.py: the note names the color the box is drawn in
     const PALETTE = [
         ["red", "#ff0000"], ["blue", "#0050ff"], ["green", "#00b400"], ["yellow", "#ffd400"],
@@ -161,17 +163,137 @@
         });
     }
 
-    // Auto: coordinates for FLUX 3, marks for Qwen-Image 2.1, nothing for the other models
+    // ---- Layout JSON (MOSS-Image) ----
+    // The whole prompt becomes OpenMOSS's layout: {"summary": {"meta", "canvas", "caption"}, "items": [{"label", "caption",
+    // "text", "bbox"}], "bbox_coord_space": "abs_centralized", "bbox_format": "yxyx"}, with boxes in pixels from the
+    // center of the picture. The conversion is the one of OpenMOSS's own compile_prompt.py (moss-image-prompt-enhancer
+    // skill): top and left floored, bottom and right ceiled, then the center subtracted; compact JSON on one line.
+
+    const MOSS_LABELS = ["object", "character", "text"];
+    const MOSS_CANVASES = ["single", "multi_panel", "collage"];
+
+    function edge(v, round) {
+        return round(Number(v.toFixed(9)));
+    }
+
+    // normBox without the rounding: a layout read from the prompt keeps its exact pixels through Read and Write
+    function exactBox(box) {
+        const [a, b, c, d] = box.map((v) => Math.max(0, Math.min(1000, Number(v))));
+        return [Math.min(a, c), Math.min(b, d), Math.max(a, c), Math.max(b, d)];
+    }
+
+    // 0-1000 grid [top, left, bottom, right] -> [y_min, x_min, y_max, x_max] in pixels from the center of a w x h picture
+    function mossBox(box, w, h) {
+        const [t, l, b, r] = exactBox(box);
+        const cy = Math.floor(h / 2), cx = Math.floor(w / 2);
+        return [edge(t * h / 1000, Math.floor) - cy, edge(l * w / 1000, Math.floor) - cx,
+            edge(b * h / 1000, Math.ceil) - cy, edge(r * w / 1000, Math.ceil) - cx];
+    }
+
+    function gridBox(bbox, w, h) {
+        const cy = Math.floor(h / 2), cx = Math.floor(w / 2);
+        const [y1, x1, y2, x2] = bbox.map(Number);
+        return exactBox([(y1 + cy) / h * 1000, (x1 + cx) / w * 1000, (y2 + cy) / h * 1000, (x2 + cx) / w * 1000]);
+    }
+
+    function mossLabel(el) {
+        return MOSS_LABELS.includes(el.label) ? el.label : "object";
+    }
+
+    function isMossComplete(el) {
+        if (!el.tgt || !String(el.desc || "").trim()) return false;
+        return mossLabel(el) !== "text" || !!String(el.text || "").trim();
+    }
+
+    function mossItem(el, w, h) {
+        const label = mossLabel(el);
+        const item = {label, caption: String(el.desc).trim()};
+        if (label === "text") item.text = String(el.text);
+        item.bbox = mossBox(el.tgt, w, h);
+        return item;
+    }
+
+    // Forge's extra network tags (<lora:name:1>) stay out of the layout, after it, where Forge still finds them
+    const NETWORK_TAG = /<[a-z_]+:[^<>]+>/gi;
+
+    function splitTags(prompt) {
+        const text = String(prompt || "");
+        return {text: text.replace(NETWORK_TAG, "").replace(/[ 	]{2,}/g, " ").trim(), tags: text.match(NETWORK_TAG) || []};
+    }
+
+    // the layout the prompt holds, or null when the prompt is not one
+    function parseMoss(prompt) {
+        const text = splitTags(prompt).text;
+        if (!text.startsWith("{")) return null;
+        try {
+            const o = JSON.parse(text);
+            return o && Array.isArray(o.items) && o.summary && typeof o.summary === "object" ? o : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // the scene caption: the summary's when the prompt already is a layout, else the prompt itself
+    function mossCaption(prompt) {
+        const current = parseMoss(prompt);
+        return current ? String(current.summary.caption || "").trim() : splitTags(prompt).text;
+    }
+
+    function parseMeta(text) {
+        return String(text || "").split(",").map((s) => s.trim()).filter(Boolean);
+    }
+
+    // the prompt with the boxes as a layout; without boxes, a layout turns back into its caption
+    function writeMoss(prompt, elements, w, h, options) {
+        const current = parseMoss(prompt);
+        const caption = mossCaption(prompt);
+        const items = elements.filter(isMossComplete).map((e) => mossItem(e, w, h));
+        const tags = splitTags(prompt).tags.join(" ");
+        if (!items.length) return current ? [caption, tags].filter(Boolean).join(" ") : prompt;
+        const before = current ? current.summary : {};
+        const meta = options && options.meta && options.meta.length ? options.meta : before.meta;
+        const summary = {};
+        if (Array.isArray(meta) && meta.length) summary.meta = meta;
+        summary.canvas = MOSS_CANVASES.includes(options && options.canvas) ? options.canvas : before.canvas || "single";
+        summary.caption = caption;
+        if (before.palette) summary.palette = before.palette;
+        return [JSON.stringify({summary, items, bbox_coord_space: "abs_centralized", bbox_format: "yxyx"}), tags].filter(Boolean).join(" ");
+    }
+
+    // the panel's elements, meta and canvas from a layout in the prompt, on a w x h picture; null when there is none
+    function readMoss(prompt, w, h) {
+        const layout = parseMoss(prompt);
+        if (!layout) return null;
+        const elements = layout.items.filter((o) => o && typeof o === "object" && Array.isArray(o.bbox) && o.bbox.length === 4)
+            .map((o, i) => ({id: `obj_${i + 1}`, kind: KINDS.place, label: MOSS_LABELS.includes(o.label) ? o.label : "object",
+                desc: String(o.caption || ""), text: o.text === undefined ? "" : String(o.text), tgt: gridBox(o.bbox, w, h),
+                src: null, ref: 0, color: i % PALETTE.length}));
+        const meta = Array.isArray(layout.summary.meta) ? layout.summary.meta.join(", ") : "";
+        return {elements, meta, canvas: MOSS_CANVASES.includes(layout.summary.canvas) ? layout.summary.canvas : "single"};
+    }
+
+    // whether a layout's boxes go past a w x h picture (written for another size)
+    function mossOutOfBounds(prompt, w, h) {
+        const layout = parseMoss(prompt);
+        if (!layout) return false;
+        const cy = Math.floor(h / 2), cx = Math.floor(w / 2);
+        return layout.items.some((o) => Array.isArray(o && o.bbox) && o.bbox.length === 4 &&
+            (o.bbox[0] < -cy || o.bbox[1] < -cx || o.bbox[2] > h - cy || o.bbox[3] > w - cx));
+    }
+
+    // Auto: coordinates for FLUX 3, marks for Qwen-Image 2.1, layout JSON for MOSS-Image, nothing for the other models
     function resolveFormat(choice, preset, checkpoint) {
-        if (choice === FORMATS.coords || choice === FORMATS.marks) return choice;
+        if (choice === FORMATS.coords || choice === FORMATS.marks || choice === FORMATS.moss) return choice;
         const loaded = `${preset || ""} ${checkpoint || ""}`;
         if (/flux[-_.]?3/i.test(loaded)) return FORMATS.coords;
         if (preset === "qwen21" || /qwen[\s_.-]*(image)?[\s_.-]*2[\s_.]?1/i.test(checkpoint || "")) return FORMATS.marks;
+        if (preset === "moss" || /moss/i.test(checkpoint || "")) return FORMATS.moss;
         return FORMATS.none;
     }
 
     const api = {KINDS, FORMATS, PALETTE, buildLayout, writeLayout, readLayout, findLayoutSpan, elementJson, isComplete,
-        buildNotes, writeNotes, marksPayload, resolveFormat};
+        buildNotes, writeNotes, marksPayload, MOSS_LABELS, MOSS_CANVASES, mossBox, gridBox, isMossComplete, parseMoss,
+        mossCaption, parseMeta, writeMoss, readMoss, mossOutOfBounds, resolveFormat};
     if (typeof module !== "undefined" && module.exports) {
         module.exports = api;
         return;
@@ -181,7 +303,8 @@
     // ---- the panel ----
 
     const LABELS = {place: "place", add: "add new", ref: "from reference", remove: "remove"};
-    const FORMAT_LABELS = {auto: "Auto (by the loaded model)", coords: "FLUX 3 Image Klein (coordinates in the prompt)", marks: "Qwen-Image 2.1 (marks on the picture)"};
+    const FORMAT_LABELS = {auto: "Auto (by the loaded model)", coords: "FLUX 3 Image Klein (coordinates in the prompt)", marks: "Qwen-Image 2.1 (marks on the picture)",
+        moss: "MOSS-Image (layout JSON in the prompt)"};
 
     function el(tag, attrs, ...children) {
         const node = document.createElement(tag);
@@ -210,20 +333,29 @@
         const tab = host.dataset.tab;
         const app = gradioApp();
         // armed: {i, which} for the next drag; color: palette index, kept for life so a note's color never changes
-        const state = {elements: [], selected: -1, armed: null, counter: 0, format: FORMATS.auto, draw: true};
+        // written: the [Width, Height] the MOSS layout in the prompt was written or read at
+        const state = {elements: [], selected: -1, armed: null, counter: 0, format: FORMATS.auto, draw: true,
+            meta: "", canvas: "single", written: null};
+        let listedSize = "";
 
         const formatSelect = el("select", {class: "regional-boxes-format", onchange: (ev) => { state.format = ev.target.value; render(); }},
             ...Object.keys(FORMAT_LABELS).map((k) => el("option", {value: k}, FORMAT_LABELS[k])));
         const drawToggle = el("input", {type: "checkbox", checked: true, onchange: (ev) => { state.draw = ev.target.checked; syncData(); }});
         const drawLabel = el("label", {class: "regional-boxes-draw"}, drawToggle, " Draw the boxes on the input picture when generating");
         const resolved = el("span", {class: "regional-boxes-resolved"});
-        const top = el("div", {class: "regional-boxes-top"}, el("span", {}, "Format "), formatSelect, resolved, tab === "img2img" ? drawLabel : "");
+        const metaInput = el("input", {type: "text", class: "regional-boxes-meta", placeholder: "poster, flat illustration...",
+            title: "Medium and genre of the picture, separated by commas (summary.meta)", oninput: (ev) => { state.meta = ev.target.value; }});
+        const canvasSelect = el("select", {title: "One picture, panels, or a collage (summary.canvas)", onchange: (ev) => { state.canvas = ev.target.value; }},
+            ...MOSS_CANVASES.map((k) => el("option", {value: k}, k.replace("_", " "))));
+        const mossOptions = el("span", {class: "regional-boxes-moss"}, "Meta ", metaInput, " Canvas ", canvasSelect);
+        const top = el("div", {class: "regional-boxes-top"}, el("span", {}, "Format "), formatSelect, resolved, tab === "img2img" ? drawLabel : "", mossOptions);
 
         const frame = el("div", {class: "regional-boxes-frame"});
         const background = el("img", {class: "regional-boxes-bg", draggable: "false", alt: ""});
         const layer = el("div", {class: "regional-boxes-boxes"});
         frame.append(background, layer);
         const hint = el("div", {class: "regional-boxes-hint"});
+        const warning = el("div", {class: "regional-boxes-warning"});
         const list = el("div", {class: "regional-boxes-list"});
         const readButton = el("button", {class: "lg secondary gradio-button", onclick: () => read()}, "Read from prompt");
         const writeButton = el("button", {class: "lg secondary gradio-button", onclick: () => write()}, "Write to prompt");
@@ -231,12 +363,31 @@
             writeButton,
             readButton,
             el("button", {class: "lg secondary gradio-button", onclick: () => clear()}, "Clear"));
-        host.append(top, hint, frame, list, buttons);
+        host.append(top, hint, warning, frame, list, buttons);
 
         const prompt = () => app.querySelector(`#${tab}_prompt textarea`);
         const dataBox = () => app.querySelector(`#regional_boxes_${tab}_data textarea`);
         const format = () => resolveFormat(state.format,
             app.querySelector("#forge_ui_preset input")?.value, app.querySelector("#setting_sd_model_checkpoint input")?.value);
+
+        const size = () => [numberOf(app, `${tab}_width`, 1024), numberOf(app, `${tab}_height`, 1024)];
+
+        // MOSS boxes are pixels of the Width x Height they were written at: say so when the size has changed since
+        function checkSize() {
+            const ta = prompt();
+            const [w, h] = size();
+            let text = "";
+            if (format() === FORMATS.moss && ta && parseMoss(ta.value)) {
+                const [ww, wh] = state.written || [];
+                if (state.written && (ww !== w || wh !== h)) {
+                    text = `⚠ The layout in the prompt was written for ${ww}x${wh}, and the picture is now ${w}x${h}: click Write to prompt again so the boxes match.`;
+                } else if (mossOutOfBounds(ta.value, w, h)) {
+                    text = `⚠ The layout in the prompt has boxes past the ${w}x${h} picture: it was written for another size. Set that size, or Read it and Write to prompt again.`;
+                }
+            }
+            warning.textContent = text;
+            warning.style.display = text ? "" : "none";
+        }
 
         function syncData() {
             // only "Marks on image" in img2img draws anything; anything else clears the boxes the script would draw
@@ -245,8 +396,14 @@
         }
 
         function fitFrame() {
-            const w = numberOf(app, `${tab}_width`, 1024), h = numberOf(app, `${tab}_height`, 1024);
+            const [w, h] = size();
             frame.style.aspectRatio = `${w} / ${h}`;
+            // a tall picture hits the frame's max-height (640px, style.css) first: narrow it too, or it would lose its shape
+            frame.style.maxWidth = `min(512px, ${Math.round(640 * w / h)}px)`;
+            // the MOSS rows show pixels of the current size: rebuild them when it changes (only then, or the focus of the
+            // field being clicked would be lost)
+            if (`${w}x${h}` !== listedSize && format() === FORMATS.moss) renderList();
+            checkSize();
             const img = tab === "img2img" ? app.querySelector("#img2img_image img.forge-image") : null;
             const src = img && img.getAttribute("src");
             if (src) {
@@ -271,15 +428,20 @@
         function updateHint() {
             const fmt = format();
             resolved.textContent = state.format !== FORMATS.auto ? ""
-                : fmt === FORMATS.coords ? "→ FLUX 3: coordinates" : fmt === FORMATS.marks ? "→ Qwen-Image 2.1: marks" : "→ this model reads no boxes";
+                : fmt === FORMATS.coords ? "→ FLUX 3: coordinates" : fmt === FORMATS.marks ? "→ Qwen-Image 2.1: marks"
+                    : fmt === FORMATS.moss ? "→ MOSS-Image: layout JSON" : "→ this model reads no boxes";
             drawLabel.style.display = fmt === FORMATS.marks ? "" : "none";
-            readButton.style.display = fmt === FORMATS.coords ? "" : "none";
+            mossOptions.style.display = fmt === FORMATS.moss ? "" : "none";
+            readButton.style.display = fmt === FORMATS.coords || fmt === FORMATS.moss ? "" : "none";
             writeButton.disabled = fmt === FORMATS.none;
             const armed = state.armed && state.elements[state.armed.i];
             if (fmt === FORMATS.none) {
-                hint.textContent = "Regional Boxes works with FLUX 3 Image Klein and Qwen-Image 2.1: load one of them, or pick its format above.";
+                hint.textContent = "Regional Boxes works with FLUX 3 Image Klein, Qwen-Image 2.1 and MOSS-Image: load one of them, or pick its format above.";
             } else if (fmt === FORMATS.marks && tab !== "img2img") {
                 hint.textContent = "Marks are drawn on an input picture: use them in img2img. For a new picture, pick a model that reads coordinates (FLUX 3).";
+            } else if (!armed && fmt === FORMATS.moss) {
+                hint.textContent = "Describe the whole scene in the prompt, then drag on the frame to place each thing or text. "
+                    + "Write to prompt turns it all into a MOSS-Image layout for the current Width and Height.";
             } else if (!armed && fmt === FORMATS.marks) {
                 hint.textContent = "Drag over the input picture to draw a box, and say what to do inside it. Write to prompt adds one note per box.";
             } else if (!armed) {
@@ -292,16 +454,17 @@
         }
 
         function renderBoxes() {
-            const marks = format() === FORMATS.marks;
+            const fmt = format();
+            const marks = fmt === FORMATS.marks, moss = fmt === FORMATS.moss;
             layer.replaceChildren();
             state.elements.forEach((e, i) => {
                 for (const which of ["src", "tgt"]) {
                     const b = e[which];
-                    const hidden = marks ? which === "src"
+                    const hidden = marks || moss ? which === "src"
                         : (which === "tgt" && e.kind === KINDS.remove) || (which === "src" && (e.kind === KINDS.place || e.kind === KINDS.add));
                     if (!b || hidden) continue;
                     const [t, l, bo, r] = normBox(b);
-                    const label = marks ? colorName(e) : which === "src" ? `${e.id} (from)` : e.id;
+                    const label = marks ? colorName(e) : moss ? `${i + 1} ${mossLabel(e)}` : which === "src" ? `${e.id} (from)` : e.id;
                     const box = el("div", {class: `regional-boxes-box ${which}${i === state.selected ? " selected" : ""}`}, el("span", {}, label));
                     Object.assign(box.style, {top: `${t / 10}%`, left: `${l / 10}%`, height: `${(bo - t) / 10}%`, width: `${(r - l) / 10}%`, borderColor: colorOf(e)});
                     box.querySelector("span").style.background = colorOf(e);
@@ -311,12 +474,18 @@
         }
 
         function renderList() {
-            const marks = format() === FORMATS.marks;
+            const fmt = format();
+            const marks = fmt === FORMATS.marks;
+            listedSize = size().join("x");
             list.replaceChildren();
             state.elements.forEach((e, i) => {
                 const deleteButton = el("button", {class: "secondary gradio-button", title: "Delete", onclick: () => remove(i)}, "✕");
                 const swatch = el("span", {class: "regional-boxes-swatch", title: colorName(e), onclick: () => { state.selected = i; render(); }});
                 swatch.style.background = colorOf(e);
+                if (fmt === FORMATS.moss) {
+                    list.append(mossRow(e, i, swatch, deleteButton));
+                    return;
+                }
                 if (marks) {
                     // typing updates the state in place: rebuilding the list would drop the focus and the next click
                     const row = el("div", {class: `regional-boxes-row${i === state.selected ? " selected" : ""}${isMarked(e) ? "" : " incomplete"}`},
@@ -357,11 +526,63 @@
             });
         }
 
+        function mossRow(e, i, swatch, deleteButton) {
+            // typing updates the state in place, as in the marks list: rebuilding the list would drop the focus
+            const row = el("div", {class: `regional-boxes-row${i === state.selected ? " selected" : ""}${isMossComplete(e) ? "" : " incomplete"}`});
+            const touch = () => row.classList.toggle("incomplete", !isMossComplete(e));
+            const text = el("textarea", {class: "regional-boxes-text", rows: "1", placeholder: "The exact words to write (Enter for a new line)",
+                oninput: (ev) => { e.text = ev.target.value; touch(); }});
+            text.value = e.text || "";
+            const label = el("select", {title: "What the box holds", onchange: (ev) => {
+                e.label = ev.target.value;
+                text.style.display = e.label === "text" ? "" : "none";
+                touch();
+                renderBoxes();
+            }}, ...MOSS_LABELS.map((k) => el("option", {value: k}, k)));
+            label.value = mossLabel(e);
+            text.style.display = label.value === "text" ? "" : "none";
+            row.append(swatch, el("span", {class: "regional-boxes-number"}, String(i + 1)), label,
+                el("input", {type: "text", class: "regional-boxes-desc", value: e.desc,
+                    placeholder: "How it looks: a flat blue mountain, a large dark-blue uppercase title...",
+                    oninput: (ev) => { e.desc = ev.target.value; touch(); }}),
+                text,
+                el("button", {class: "secondary gradio-button", title: "Draw the box again", onclick: () => arm(i, "tgt")}, "Redraw"),
+                deleteButton);
+            if (e.tgt) row.append(mossCoords(e));
+            return row;
+        }
+
+        // the box as the layout writes it, [top, left, bottom, right] in pixels from the picture's center; typing a value
+        // moves that edge
+        function mossCoords(e) {
+            const [w, h] = size();
+            const names = ["top", "left", "bottom", "right"];
+            // text fields, not number ones: Gradio's theme stretches every number input to the full width
+            const inputs = names.map((name) => el("input", {type: "text", inputmode: "numeric", class: "regional-boxes-coord",
+                title: `${name}, in pixels from the center of the picture`,
+                onchange: () => {
+                    const values = inputs.map((input) => parseFloat(input.value));
+                    if (values.some((v) => !Number.isFinite(v))) return show();
+                    e.tgt = gridBox(values, w, h);
+                    show();
+                    renderBoxes();
+                }}));
+            function show() {
+                mossBox(e.tgt, w, h).forEach((v, k) => { inputs[k].value = String(v); });
+            }
+            show();
+            const cy = Math.floor(h / 2), cx = Math.floor(w / 2);
+            return el("div", {class: "regional-boxes-coords", title: `On ${w}x${h}: y from ${-cy} to ${h - cy}, x from ${-cx} to ${w - cx}`},
+                ...names.flatMap((name, k) => [el("span", {}, name), inputs[k]]),
+                el("span", {class: "regional-boxes-coords-size"}, `px from the center, ${w}x${h}`));
+        }
+
         function render() {
             shown = format();
             renderBoxes();
             renderList();
             updateHint();
+            checkSize();
             syncData();
         }
 
@@ -401,13 +622,33 @@
             const fmt = format();
             if (fmt === FORMATS.marks) setValue(ta, writeNotes(ta.value, buildNotes(state.elements)));
             else if (fmt === FORMATS.coords) setValue(ta, writeLayout(ta.value, buildLayout(state.elements)));
+            else if (fmt === FORMATS.moss) {
+                if (state.elements.some(isMossComplete) && !mossCaption(ta.value)) {
+                    warning.textContent = "⚠ Describe the whole scene in the prompt first: it becomes the layout's caption.";
+                    warning.style.display = "";
+                    return;
+                }
+                const [w, h] = size();
+                setValue(ta, writeMoss(ta.value, state.elements, w, h, {meta: parseMeta(state.meta), canvas: state.canvas}));
+                state.written = parseMoss(ta.value) ? [w, h] : null;
+                checkSize();
+            }
             syncData();
         }
 
         function read() {
             const ta = prompt();
             if (!ta) return;
-            state.elements = readLayout(ta.value);
+            if (format() === FORMATS.moss) {
+                const [w, h] = size();
+                const layout = readMoss(ta.value, w, h);
+                state.elements = layout ? layout.elements : [];
+                state.meta = metaInput.value = layout ? layout.meta : "";
+                state.canvas = canvasSelect.value = layout ? layout.canvas : "single";
+                state.written = layout ? [w, h] : null;
+            } else {
+                state.elements = readLayout(ta.value);
+            }
             state.counter = state.elements.length;
             state.selected = -1;
             state.armed = null;
@@ -467,7 +708,7 @@
             } else {
                 state.counter += 1;
                 state.elements.push({id: `obj_${state.counter}`, desc: "", kind: tab === "img2img" ? KINDS.add : KINDS.place,
-                    tgt: box, src: null, ref: 0, color: nextColor()});
+                    tgt: box, src: null, ref: 0, color: nextColor(), label: "object", text: ""});
                 state.selected = state.elements.length - 1;
             }
             render();
@@ -477,6 +718,7 @@
             const node = app.querySelector(`#${id}`);
             if (node) node.addEventListener("input", fitFrame);
         }
+        prompt()?.addEventListener("input", checkSize);
         // in Auto the format follows the loaded model: the list is rebuilt only when the effective format changes, since
         // rebuilding it on every click would drop the focus of the field being clicked
         let shown = null;

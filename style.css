@@ -164,7 +164,68 @@
     font-size: 0.9em;
 }
 
+.regional-boxes-warning {
+    font-size: 0.9em;
+    color: var(--color-accent, #f97316);
+}
+
+.regional-boxes-moss {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.9em;
+}
+
+.regional-boxes-moss input[type=text],
+.regional-boxes-row textarea {
+    padding: 2px 6px;
+    border: 1px solid var(--border-color-primary, #888);
+    border-radius: 4px;
+    background: var(--input-background-fill, transparent);
+    color: inherit;
+    font: inherit;
+}
+
+.regional-boxes-moss input.regional-boxes-meta {
+    width: 14em;
+}
+
+/* the words of a text box: Enter adds a line, as the picture will show it */
+.regional-boxes-row textarea.regional-boxes-text {
+    flex: 1;
+    min-width: 10em;
+    min-height: 1.6em;
+    resize: vertical;
+}
+
+.regional-boxes-number {
+    width: 1.5em;
+    text-align: center;
+    font-size: 0.9em;
+}
+
 /* the boxes for "Marks on image", written by the panel; a hidden Gradio component would not be rendered at all */
 .regional-boxes-data {
     display: none !important;
+}
+
+/* MOSS-Image: the box in the layout's own pixels, on a line of its own under the row */
+.regional-boxes-coords {
+    flex-basis: 100%;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    padding-left: 2.2em;
+    font-size: 0.85em;
+}
+
+.regional-boxes-row input.regional-boxes-coord {
+    width: 4.5em;
+    padding: 1px 4px;
+    text-align: right;
+}
+
+.regional-boxes-coords-size {
+    opacity: 0.7;
 }
