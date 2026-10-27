@@ -4,7 +4,7 @@
 
 [![Forge Neo](https://img.shields.io/badge/Forge-Neo-blue)](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)
 [![Gradio](https://img.shields.io/badge/Gradio-4.40.0-orange)](https://gradio.app/)
-[![Version](https://img.shields.io/badge/Version-0.2.2-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
+[![Version](https://img.shields.io/badge/Version-0.2.3-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
 
 > **Extension for [Stable Diffusion WebUI Forge - Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)**
@@ -31,6 +31,15 @@ Draw boxes with the mouse to tell **FLUX 3 Image Klein**, **Qwen-Image 2.1** or 
 ---
 
 ## 🆕 What's New
+
+### v0.2.3 - Last Picture and Dynamic Prompts
+
+- **The last picture behind the boxes** in txt2img - the one the gallery shows, so you can place the next boxes over what came out; **Show the last picture behind the boxes** turns it off
+- **A warning while sd-dynamic-prompts is on**, with FLUX 3 and MOSS-Image - it removes the layout's `{ }` before the model reads it
+- **Read from prompt reads a layout that lost its braces** - from a prompt Forge saved, or pasted from PNG Info - and **Write to prompt** puts them back
+- Words after a MOSS-Image layout, such as a LoRA's trigger word, are kept after it and no longer stop **Read from prompt**
+- Reads the layouts of Forge Neo's own **JSON Builder**, also with parentheses in their captions
+- With MOSS-Image, **Write to prompt** on a cleared prompt reuses the scene of the last layout, and says so; the warning asking for a scene stays until you edit the prompt
 
 ### v0.2.2 - Move and Resize Boxes
 
@@ -103,7 +112,7 @@ Draw boxes with the mouse to tell **FLUX 3 Image Klein**, **Qwen-Image 2.1** or 
 ### 🛡️ Safe by Design
 
 - Changes no Forge Neo file and adds no generation setting of its own
-- Works with **sd-dynamic-prompts** installed
+- Works with **sd-dynamic-prompts** installed, and warns while it is on, since it breaks layouts
 - The infotext records which boxes were drawn
 
 ---

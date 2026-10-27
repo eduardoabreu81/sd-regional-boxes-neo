@@ -616,7 +616,7 @@
         function checkSize() {
             const lines = [];
             if ((format() === FORMATS.coords || format() === FORMATS.moss) && dynamicPrompts()?.checked) {
-                lines.push("⚠ Dynamic Prompts is on: it removes the layout's { } before the model reads it, so the boxes are lost. "
+                lines.push("⚠ Dynamic Prompts is on: it removes the layout's { } before the model reads it, and the boxes can be lost. "
                     + "Turn off Dynamic Prompts enabled in its accordion below.");
             }
             const ta = prompt();
