@@ -713,6 +713,7 @@
                 background.removeAttribute("src");
                 background.style.display = "none";
             }
+            frame.classList.toggle("has-picture", !!src);
         }
 
         function colorOf(e) {

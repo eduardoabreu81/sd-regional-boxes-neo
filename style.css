@@ -18,12 +18,22 @@
     max-height: 640px;
     margin: 0 auto;
     aspect-ratio: 1 / 1;
-    background: repeating-conic-gradient(rgba(127, 127, 127, 0.18) 0% 25%, transparent 0% 50%) 50% / 32px 32px;
+    /* a 16px grid, as Forge Neo's own JSON Builder draws its canvas */
+    background-color: var(--background-fill-secondary, transparent);
+    background-image:
+        linear-gradient(to right, color-mix(in srgb, var(--border-color-primary, #888) 60%, transparent) 1px, transparent 1px),
+        linear-gradient(to bottom, color-mix(in srgb, var(--border-color-primary, #888) 60%, transparent) 1px, transparent 1px);
+    background-size: 16px 16px;
     border: 1px solid var(--border-color-primary, #888);
     border-radius: 4px;
     cursor: crosshair;
     user-select: none;
     overflow: hidden;
+}
+
+/* a picture behind the boxes hides the grid, which would show through it */
+.regional-boxes-frame.has-picture {
+    background-image: none;
 }
 
 .regional-boxes-bg {
