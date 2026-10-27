@@ -4,7 +4,7 @@
 
 [![Forge Neo](https://img.shields.io/badge/Forge-Neo-blue)](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)
 [![Gradio](https://img.shields.io/badge/Gradio-4.40.0-orange)](https://gradio.app/)
-[![Version](https://img.shields.io/badge/Version-0.2.3-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
+[![Version](https://img.shields.io/badge/Version-0.2.4-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
 
 > **Extension for [Stable Diffusion WebUI Forge - Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)**
@@ -31,6 +31,12 @@ Draw boxes with the mouse to tell **FLUX 3 Image Klein**, **Qwen-Image 2.1** or 
 ---
 
 ## 🆕 What's New
+
+### v0.2.4 - Scene and Extra
+
+- **Scene** - with MOSS-Image, the whole picture is described in the panel, and becomes the layout's caption; it stays there when you clear the prompt, and a scene typed as the prompt still fills it
+- **Extra** - LoRA tags and their trigger words, written after the layout, outside it; a LoRA you add from Forge Neo's LoRA tab after writing is kept too
+- Both follow the prompt: **Read from prompt** fills them, and a caption or tag changed by hand in the prompt shows up in them
 
 ### v0.2.3 - Last Picture and Dynamic Prompts
 
@@ -95,13 +101,13 @@ Draw boxes with the mouse to tell **FLUX 3 Image Klein**, **Qwen-Image 2.1** or 
 
 <p align="center"><img src=".github/images/panel_moss.jpg" alt="The Regional Boxes panel with a MOSS-Image layout: a title, a fox and a subtitle box over the input poster, each row with its pixels and the center buttons" width="760"></p>
 
-- Describe the whole scene in the prompt, then draw a box for each thing and each piece of text
+- Describe the whole picture in **Scene** (or as the prompt), then draw a box for each thing and each piece of text
 - For each box, choose what it holds - **object**, **character** or **text** - and say how it looks; a text box also takes the exact words to write, with Enter for a new line
 - **Meta** says what kind of picture it is (*poster, flat illustration*, *product photo*...), and **Canvas** whether it is one picture, panels or a collage
-- **Write to prompt** turns it all into [MOSS-Image's layout](https://github.com/OpenMOSS/MOSS-Image/blob/main/USERGUIDE.md#layout-prompts-experimental), the way OpenMOSS's own tools write it; your description becomes the layout's caption
+- **Write to prompt** turns it all into [MOSS-Image's layout](https://github.com/OpenMOSS/MOSS-Image/blob/main/USERGUIDE.md#layout-prompts-experimental), the way OpenMOSS's own tools write it; Scene becomes the layout's caption
 - Under each box, its edges in pixels from the center of the picture, as the layout uses them - type a number to set an edge exactly
 - **Read from prompt** loads a layout back, yours or one you pasted, to adjust it
-- LoRA tags such as `<lora:name:1>` stay after the layout, where Forge Neo still finds them
+- **Extra** holds LoRA tags such as `<lora:name:1>` and their trigger words: they go after the layout, where Forge Neo still finds them, and tags already in the prompt are kept
 - Change the size and the layout follows: the boxes in the prompt are moved to fit, and the panel says so
 - In img2img, draw over the input picture and describe the new version: things keep their place, while captions and words can change
 - Works in txt2img and img2img; needs the [MOSS-Image extension](https://github.com/eduardoabreu81/moss-image-forge-neo) 0.1.2 or newer, which keeps the layout whole with sd-dynamic-prompts installed

@@ -203,6 +203,18 @@ const tests = {
         assert.ok(R.writeLayout(prompt, R.buildLayout(list)).startsWith('A cat on a sofa. [{"id": "cat"'));
     },
 
+    "MOSS: the panel's Scene wins over the layout's caption, and Extra over what followed the layout"() {
+        const box = [{label: "object", desc: "A boat.", tgt: [1, 1, 500, 500]}];
+        const layout = R.writeMoss("A quiet lake. <lora:a:1>", box, 1024, 1024, {});
+        const again = R.writeMoss(`${layout} venusbody`, box, 1024, 1024, {caption: "A stormy sea at night."});
+        assert.equal(R.mossCaption(again), "A stormy sea at night.");
+        assert.equal(R.mossExtra(again), "venusbody <lora:a:1>");
+        // Extra replaces it; a tag added from the LoRA tab since, and missing from Extra, stays after it
+        const extra = R.writeMoss(`${layout} <lora:b:0.5>`, box, 1024, 1024, {extra: "dramatic light <lora:a:1>"});
+        assert.equal(R.mossExtra(extra), "dramatic light <lora:a:1> <lora:b:0.5>");
+        assert.equal(R.mossCaption(extra), "A quiet lake.");
+    },
+
     "MOSS: a cleared prompt takes the remembered scene, a new one wins over it"() {
         const box = [{label: "object", desc: "A boat.", tgt: [1, 1, 500, 500]}];
         assert.equal(R.mossCaption(R.writeMoss("", box, 1024, 1024, {caption: "A quiet lake."})), "A quiet lake.");

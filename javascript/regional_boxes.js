@@ -402,12 +402,26 @@
         return String(text || "").split(",").map((s) => s.trim()).filter(Boolean);
     }
 
-    // the prompt with the boxes as a layout; without boxes, a layout turns back into its caption. options.caption stands in
-    // for a prompt with no scene in it
+    // what follows the layout in the prompt: the words after it, then Forge's tags (the panel's Extra)
+    function mossExtra(prompt) {
+        const parts = mossParts(prompt);
+        return [parts.rest, parts.tags.join(" ")].filter(Boolean).join(" ");
+    }
+
+    // the prompt with the boxes as a layout; without boxes, a layout turns back into its caption.
+    // options.caption is the panel's Scene: a scene typed as the plain prompt comes first, then it, then the caption of
+    // the layout already there. options.extra, when given, replaces what follows the layout; a Forge tag the prompt has
+    // and it lacks (one added from the LoRA tab since) is kept after it
     function writeMoss(prompt, elements, w, h, options) {
         const parts = mossParts(prompt);
         const current = parts.layout;
-        const caption = mossCaption(prompt) || String((options && options.caption) || "").trim();
+        const scene = String((options && options.caption) || "").trim();
+        const caption = (!current && splitTags(prompt).text) || scene || mossCaption(prompt);
+        if (options && typeof options.extra === "string") {
+            const extra = options.extra.trim();
+            const missing = parts.tags.filter((tag) => !extra.includes(tag));
+            Object.assign(parts, {rest: extra, tags: missing});
+        }
         const items = elements.filter(isMossComplete).map((e) => mossItem(e, w, h));
         if (!items.length) return current ? joinMoss(caption, parts) : prompt;
         const before = current ? current.summary : {};
@@ -504,7 +518,7 @@
 
     const api = {KINDS, FORMATS, PALETTE, buildLayout, writeLayout, readLayout, findLayoutSpan, elementJson, isComplete,
         buildNotes, writeNotes, marksPayload, MOSS_LABELS, MOSS_CANVASES, mossBox, gridBox, isMossComplete, parseMoss,
-        mossParts, layoutStripped, mossCaption, parseMeta, writeMoss, readMoss, mossOutOfBounds, rescaleMoss, moveBox, resizeBox, centerBox, resizeByTarget,
+        mossParts, mossExtra, layoutStripped, mossCaption, parseMeta, writeMoss, readMoss, mossOutOfBounds, rescaleMoss, moveBox, resizeBox, centerBox, resizeByTarget,
         resolveFormat};
     if (typeof module !== "undefined" && module.exports) {
         module.exports = api;
@@ -547,10 +561,12 @@
         // armed: {i, which} for the next drag; color: palette index, kept for life so a note's color never changes
         // written: the [Width, Height] the MOSS layout in the prompt was written or read at
         // alert: why the last Write to prompt did nothing, shown until the prompt changes
-        // caption: the scene of the last layout written or read, for when the prompt has been cleared since
+        // caption, extra: the Scene and Extra fields, the layout's caption and what follows the layout; edited: which of
+        // them were typed into since the last Write or Read (the others follow the prompt)
         // last: txt2img shows its last picture behind the boxes
         const state = {elements: [], selected: -1, armed: null, counter: 0, format: FORMATS.auto, draw: true,
-            meta: "", canvas: "single", written: null, note: "", alert: "", caption: "", last: true};
+            meta: "", canvas: "single", written: null, note: "", alert: "", caption: "", extra: "",
+            edited: {caption: false, extra: false}, last: true};
         let listedSize = "";
 
         const formatSelect = el("select", {class: "regional-boxes-format", onchange: (ev) => { state.format = ev.target.value; render(); }},
@@ -567,6 +583,15 @@
             ...MOSS_CANVASES.map((k) => el("option", {value: k}, k.replace("_", " "))));
         const mossOptions = el("span", {class: "regional-boxes-moss"}, "Meta ", metaInput, " Canvas ", canvasSelect);
         const top = el("div", {class: "regional-boxes-top"}, el("span", {}, "Format "), formatSelect, resolved, tab === "img2img" ? drawLabel : lastLabel, mossOptions);
+        const sceneInput = el("textarea", {class: "regional-boxes-scene-text", rows: "2",
+            placeholder: "The whole picture in a sentence or two: who is there, doing what, where, in what light...",
+            title: "The scene, the layout's caption (summary.caption)",
+            oninput: (ev) => { state.caption = ev.target.value; state.edited.caption = true; state.alert = ""; checkSize(); }});
+        const extraInput = el("input", {type: "text", class: "regional-boxes-extra", placeholder: "<lora:...> trigger words",
+            title: "Written after the layout, outside it: LoRA tags and their trigger words",
+            oninput: (ev) => { state.extra = ev.target.value; state.edited.extra = true; }});
+        const sceneRow = el("div", {class: "regional-boxes-scene"},
+            el("label", {}, "Scene", sceneInput), el("label", {}, "Extra", extraInput));
 
         const frame = el("div", {class: "regional-boxes-frame"});
         const background = el("img", {class: "regional-boxes-bg", draggable: "false", alt: ""});
@@ -581,7 +606,7 @@
             writeButton,
             readButton,
             el("button", {class: "lg secondary gradio-button", onclick: () => clear()}, "Clear"));
-        host.append(top, hint, warning, frame, list, buttons);
+        host.append(top, sceneRow, hint, warning, frame, list, buttons);
 
         const prompt = () => app.querySelector(`#${tab}_prompt textarea`);
         const dataBox = () => app.querySelector(`#regional_boxes_${tab}_data textarea`);
@@ -707,6 +732,7 @@
                     : fmt === FORMATS.moss ? "→ MOSS-Image: layout JSON" : "→ this model reads no boxes";
             drawLabel.style.display = fmt === FORMATS.marks ? "" : "none";
             mossOptions.style.display = fmt === FORMATS.moss ? "" : "none";
+            sceneRow.style.display = fmt === FORMATS.moss ? "" : "none";
             readButton.style.display = fmt === FORMATS.coords || fmt === FORMATS.moss ? "" : "none";
             writeButton.disabled = fmt === FORMATS.none;
             const armed = state.armed && state.elements[state.armed.i];
@@ -715,8 +741,8 @@
             } else if (fmt === FORMATS.marks && tab !== "img2img") {
                 hint.textContent = "Marks are drawn on an input picture: use them in img2img. For a new picture, pick a model that reads coordinates (FLUX 3).";
             } else if (!armed && fmt === FORMATS.moss) {
-                hint.textContent = "Describe the whole scene in the prompt, then drag on the frame to place each thing or text. "
-                    + "Write to prompt turns it all into a MOSS-Image layout for the current Width and Height.";
+                hint.textContent = "Describe the whole picture in Scene (or as the prompt), then drag on the frame to place each thing or text. "
+                    + "Write to prompt turns it all into a MOSS-Image layout for the current Width and Height, with Extra after it.";
             } else if (!armed && fmt === FORMATS.marks) {
                 hint.textContent = "Drag over the input picture to draw a box, and say what to do inside it. Write to prompt adds one note per box.";
             } else if (!armed) {
@@ -925,22 +951,38 @@
             if (fmt === FORMATS.marks) setValue(ta, writeNotes(ta.value, buildNotes(state.elements)));
             else if (fmt === FORMATS.coords) setValue(ta, writeLayout(ta.value, buildLayout(state.elements)));
             else if (fmt === FORMATS.moss) {
-                const reused = !mossCaption(ta.value) && state.caption;
+                const current = parseMoss(ta.value);
+                const scene = (!current && splitTags(ta.value).text) || state.caption.trim() || (current ? mossCaption(ta.value) : "");
                 // through checkSize, which the click on the panel runs right after and would otherwise clear it
-                if (state.elements.some(isMossComplete) && !mossCaption(ta.value) && !reused) {
-                    state.alert = "⚠ Describe the whole scene in the prompt first: it becomes the layout's caption.";
+                if (state.elements.some(isMossComplete) && !scene) {
+                    state.alert = "⚠ Describe the whole picture in Scene first: it becomes the layout's caption.";
                     checkSize();
                     return;
                 }
                 state.alert = "";
                 const [w, h] = size();
-                setValue(ta, writeMoss(ta.value, state.elements, w, h, {meta: parseMeta(state.meta), canvas: state.canvas, caption: state.caption}));
+                // without a layout in the prompt (cleared, or a new scene typed there), Extra is what still remembers the
+                // words and tags that followed the last one
+                const extra = state.edited.extra || !current ? state.extra : undefined;
+                setValue(ta, writeMoss(ta.value, state.elements, w, h, {meta: parseMeta(state.meta), canvas: state.canvas,
+                    caption: state.caption, extra}));
                 state.written = parseMoss(ta.value) ? [w, h] : null;
-                if (state.written) state.caption = mossCaption(ta.value);
-                state.note = state.written && reused ? "The prompt had no scene, so the layout keeps the last one: edit its caption to change it." : "";
+                state.note = "";
+                syncFields(true);
                 checkSize();
             }
             syncData();
+        }
+
+        // Scene and Extra from the layout in the prompt: all of it after a Write or Read (force), else only the field not
+        // typed into since, so a LoRA added from Forge's tab or a caption changed by hand shows up in the panel
+        function syncFields(force) {
+            const ta = prompt();
+            const current = ta && parseMoss(ta.value);
+            if (!current) return;
+            if (force || !state.edited.caption) state.caption = sceneInput.value = mossCaption(ta.value);
+            if (force || !state.edited.extra) state.extra = extraInput.value = mossExtra(ta.value);
+            if (force) state.edited = {caption: false, extra: false};
         }
 
         function read() {
@@ -953,7 +995,7 @@
                 state.meta = metaInput.value = layout ? layout.meta : "";
                 state.canvas = canvasSelect.value = layout ? layout.canvas : "single";
                 state.written = layout ? [w, h] : null;
-                if (layout) state.caption = mossCaption(ta.value);
+                syncFields(true);
                 state.note = "";
             } else {
                 state.elements = readLayout(ta.value);
@@ -1058,7 +1100,11 @@
             const node = app.querySelector(`#${id}`);
             if (node) node.addEventListener("input", fitFrame);
         }
-        prompt()?.addEventListener("input", () => { state.alert = ""; checkSize(); });
+        prompt()?.addEventListener("input", () => {
+            state.alert = "";
+            if (format() === FORMATS.moss) syncFields(false);
+            checkSize();
+        });
         dynamicPrompts()?.addEventListener("change", checkSize);
         if (tab === "img2img") {
             // "Resize to" / "Resize by", the scale and the input picture all change the size Forge's preview shows
@@ -1083,6 +1129,7 @@
         host.closest(".gradio-accordion, .block")?.addEventListener("click", () => setTimeout(() => { fitFrame(); refreshFormat(); }, 50));
         fitFrame();
         render();
+        syncFields(true);
     }
 
     onUiLoaded(() => {

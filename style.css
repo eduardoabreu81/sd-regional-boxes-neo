@@ -199,7 +199,38 @@
     font-size: 0.9em;
 }
 
+/* MOSS-Image's Scene (the layout's caption) and Extra (what follows the layout) */
+.regional-boxes-scene {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    font-size: 0.9em;
+}
+
+.regional-boxes-scene label {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+.regional-boxes-scene label:first-child {
+    flex: 3 1 24em;
+}
+
+.regional-boxes-scene label:last-child {
+    flex: 1 1 14em;
+}
+
+.regional-boxes-scene textarea,
+.regional-boxes-scene input {
+    flex: 1;
+    min-width: 0;
+    resize: vertical;
+}
+
 .regional-boxes-moss input[type=text],
+.regional-boxes-scene textarea,
+.regional-boxes-scene input,
 .regional-boxes-row textarea {
     padding: 2px 6px;
     border: 1px solid var(--border-color-primary, #888);
