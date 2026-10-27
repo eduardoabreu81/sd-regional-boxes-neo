@@ -136,7 +136,7 @@ FLUX 3 and Qwen-Image 2.1 do not follow each other's format (top right, bottom l
 ## 🖱️ How to Use
 
 1. Load FLUX 3 Image Klein, Qwen-Image 2.1 or MOSS-Image, and open **Regional Boxes** in txt2img or img2img - the format follows the loaded model, or pick it yourself
-2. Set **Width** and **Height** first, then drag on the frame to draw a box; in img2img the input picture shows behind it
+2. Set **Width** and **Height** first, then drag on the frame to draw a box; in img2img the input picture shows behind it, and in txt2img the last picture you made (turn it off with **Show the last picture behind the boxes**)
 3. Describe each box - what it is (coordinates, layout) or what to do inside it (marks)
 4. Click **Write to prompt**, then **Generate**
 

@@ -243,10 +243,11 @@
         return String(text || "").split(",").map((s) => s.trim()).filter(Boolean);
     }
 
-    // the prompt with the boxes as a layout; without boxes, a layout turns back into its caption
+    // the prompt with the boxes as a layout; without boxes, a layout turns back into its caption. options.caption stands in
+    // for a prompt with no scene in it
     function writeMoss(prompt, elements, w, h, options) {
         const current = parseMoss(prompt);
-        const caption = mossCaption(prompt);
+        const caption = mossCaption(prompt) || String((options && options.caption) || "").trim();
         const items = elements.filter(isMossComplete).map((e) => mossItem(e, w, h));
         const tags = splitTags(prompt).tags.join(" ");
         if (!items.length) return current ? [caption, tags].filter(Boolean).join(" ") : prompt;
@@ -385,21 +386,27 @@
         const app = gradioApp();
         // armed: {i, which} for the next drag; color: palette index, kept for life so a note's color never changes
         // written: the [Width, Height] the MOSS layout in the prompt was written or read at
+        // alert: why the last Write to prompt did nothing, shown until the prompt changes
+        // caption: the scene of the last layout written or read, for when the prompt has been cleared since
+        // last: txt2img shows its last picture behind the boxes
         const state = {elements: [], selected: -1, armed: null, counter: 0, format: FORMATS.auto, draw: true,
-            meta: "", canvas: "single", written: null, note: ""};
+            meta: "", canvas: "single", written: null, note: "", alert: "", caption: "", last: true};
         let listedSize = "";
 
         const formatSelect = el("select", {class: "regional-boxes-format", onchange: (ev) => { state.format = ev.target.value; render(); }},
             ...Object.keys(FORMAT_LABELS).map((k) => el("option", {value: k}, FORMAT_LABELS[k])));
         const drawToggle = el("input", {type: "checkbox", checked: true, onchange: (ev) => { state.draw = ev.target.checked; syncData(); }});
         const drawLabel = el("label", {class: "regional-boxes-draw"}, drawToggle, " Draw the boxes on the input picture when generating");
+        const lastToggle = el("input", {type: "checkbox", checked: true, onchange: (ev) => { state.last = ev.target.checked; showBackground(); }});
+        const lastLabel = el("label", {class: "regional-boxes-draw", title: "Stretched to the current Width and Height"},
+            lastToggle, " Show the last picture behind the boxes");
         const resolved = el("span", {class: "regional-boxes-resolved"});
         const metaInput = el("input", {type: "text", class: "regional-boxes-meta", placeholder: "poster, flat illustration...",
             title: "Medium and genre of the picture, separated by commas (summary.meta)", oninput: (ev) => { state.meta = ev.target.value; }});
         const canvasSelect = el("select", {title: "One picture, panels, or a collage (summary.canvas)", onchange: (ev) => { state.canvas = ev.target.value; }},
             ...MOSS_CANVASES.map((k) => el("option", {value: k}, k.replace("_", " "))));
         const mossOptions = el("span", {class: "regional-boxes-moss"}, "Meta ", metaInput, " Canvas ", canvasSelect);
-        const top = el("div", {class: "regional-boxes-top"}, el("span", {}, "Format "), formatSelect, resolved, tab === "img2img" ? drawLabel : "", mossOptions);
+        const top = el("div", {class: "regional-boxes-top"}, el("span", {}, "Format "), formatSelect, resolved, tab === "img2img" ? drawLabel : lastLabel, mossOptions);
 
         const frame = el("div", {class: "regional-boxes-frame"});
         const background = el("img", {class: "regional-boxes-bg", draggable: "false", alt: ""});
@@ -446,8 +453,8 @@
         function checkSize() {
             const ta = prompt();
             const [w, h] = size();
-            let text = "";
-            if (format() === FORMATS.moss && ta && parseMoss(ta.value)) {
+            let text = format() === FORMATS.moss ? state.alert : "";
+            if (!text && format() === FORMATS.moss && ta && parseMoss(ta.value)) {
                 const [ww, wh] = state.written || [];
                 if (state.written && (ww !== w || wh !== h)) {
                     text = `⚠ The layout in the prompt was written for ${ww}x${wh}, and the picture is now ${w}x${h}; its boxes were changed by hand, so they were not moved: click Write to prompt again so they match.`;
@@ -478,7 +485,22 @@
             // field being clicked would be lost)
             if (`${w}x${h}` !== listedSize && format() === FORMATS.moss) renderList();
             checkSize();
-            const img = tab === "img2img" ? app.querySelector("#img2img_image img.forge-image") : null;
+            showBackground();
+        }
+
+        // the picture behind the boxes: img2img's input, or in txt2img the picture the gallery shows (the selected one,
+        // else the first), never the live preview of a generation still running
+        function backgroundImage() {
+            if (tab === "img2img") return app.querySelector("#img2img_image img.forge-image");
+            if (!state.last) return null;
+            const gallery = app.querySelector("#txt2img_gallery");
+            if (!gallery) return null;
+            const pick = (selector) => Array.from(gallery.querySelectorAll(selector)).find((img) => !img.closest(".livePreview"));
+            return pick("[data-testid='detailed-image']") || pick(".thumbnail-item.selected img") || pick(".thumbnail-item img");
+        }
+
+        function showBackground() {
+            const img = backgroundImage();
             const src = img && img.getAttribute("src");
             if (src) {
                 background.src = src;
@@ -724,15 +746,19 @@
             if (fmt === FORMATS.marks) setValue(ta, writeNotes(ta.value, buildNotes(state.elements)));
             else if (fmt === FORMATS.coords) setValue(ta, writeLayout(ta.value, buildLayout(state.elements)));
             else if (fmt === FORMATS.moss) {
-                if (state.elements.some(isMossComplete) && !mossCaption(ta.value)) {
-                    warning.textContent = "⚠ Describe the whole scene in the prompt first: it becomes the layout's caption.";
-                    warning.style.display = "";
+                const reused = !mossCaption(ta.value) && state.caption;
+                // through checkSize, which the click on the panel runs right after and would otherwise clear it
+                if (state.elements.some(isMossComplete) && !mossCaption(ta.value) && !reused) {
+                    state.alert = "⚠ Describe the whole scene in the prompt first: it becomes the layout's caption.";
+                    checkSize();
                     return;
                 }
+                state.alert = "";
                 const [w, h] = size();
-                setValue(ta, writeMoss(ta.value, state.elements, w, h, {meta: parseMeta(state.meta), canvas: state.canvas}));
+                setValue(ta, writeMoss(ta.value, state.elements, w, h, {meta: parseMeta(state.meta), canvas: state.canvas, caption: state.caption}));
                 state.written = parseMoss(ta.value) ? [w, h] : null;
-                state.note = "";
+                if (state.written) state.caption = mossCaption(ta.value);
+                state.note = state.written && reused ? "The prompt had no scene, so the layout keeps the last one: edit its caption to change it." : "";
                 checkSize();
             }
             syncData();
@@ -748,6 +774,7 @@
                 state.meta = metaInput.value = layout ? layout.meta : "";
                 state.canvas = canvasSelect.value = layout ? layout.canvas : "single";
                 state.written = layout ? [w, h] : null;
+                if (layout) state.caption = mossCaption(ta.value);
                 state.note = "";
             } else {
                 state.elements = readLayout(ta.value);
@@ -852,12 +879,16 @@
             const node = app.querySelector(`#${id}`);
             if (node) node.addEventListener("input", fitFrame);
         }
-        prompt()?.addEventListener("input", checkSize);
+        prompt()?.addEventListener("input", () => { state.alert = ""; checkSize(); });
         if (tab === "img2img") {
             // "Resize to" / "Resize by", the scale and the input picture all change the size Forge's preview shows
             app.querySelector("#img2img_tabs_resize")?.addEventListener("click", () => setTimeout(fitFrame, 100));
             const preview = app.querySelector("#img2img_scale_resolution_preview");
             if (preview) new MutationObserver(() => fitFrame()).observe(preview, {childList: true, subtree: true, characterData: true});
+        } else {
+            // a new picture, or another one picked in the gallery
+            const gallery = app.querySelector("#txt2img_gallery");
+            if (gallery) new MutationObserver(showBackground).observe(gallery, {childList: true, subtree: true, attributes: true, attributeFilter: ["src", "class"]});
         }
         // in Auto the format follows the loaded model: the list is rebuilt only when the effective format changes, since
         // rebuilding it on every click would drop the focus of the field being clicked

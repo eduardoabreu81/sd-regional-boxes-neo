@@ -162,6 +162,12 @@ const tests = {
         assert.equal(JSON.parse(layout).summary.canvas, "single");
     },
 
+    "MOSS: a cleared prompt takes the remembered scene, a new one wins over it"() {
+        const box = [{label: "object", desc: "A boat.", tgt: [1, 1, 500, 500]}];
+        assert.equal(R.mossCaption(R.writeMoss("", box, 1024, 1024, {caption: "A quiet lake."})), "A quiet lake.");
+        assert.equal(R.mossCaption(R.writeMoss("A stormy sea.", box, 1024, 1024, {caption: "A quiet lake."})), "A stormy sea.");
+    },
+
     "reads OpenMOSS's travel poster example back"() {
         const example = '{"summary": {"meta": ["poster"], "canvas": "single", "caption": "A minimalist travel poster."}, "items": [' +
             '{"label": "text", "caption": "Large dark-blue uppercase title centered at the top.", "text": "EXPLORE", "bbox": [-416, -384, -288, 384]}, ' +
