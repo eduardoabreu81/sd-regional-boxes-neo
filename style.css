@@ -232,7 +232,7 @@
 }
 
 .regional-boxes-scene textarea,
-.regional-boxes-scene input {
+.regional-boxes-scene input[type=text] {
     flex: 1;
     min-width: 0;
     resize: vertical;
@@ -240,7 +240,7 @@
 
 .regional-boxes-moss input[type=text],
 .regional-boxes-scene textarea,
-.regional-boxes-scene input,
+.regional-boxes-scene input[type=text],
 .regional-boxes-row textarea {
     padding: 2px 6px;
     border: 1px solid var(--border-color-primary, #888);
