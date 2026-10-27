@@ -188,6 +188,7 @@
 
 .regional-boxes-warning {
     font-size: 0.9em;
+    white-space: pre-line;
     color: var(--color-accent, #f97316);
 }
 

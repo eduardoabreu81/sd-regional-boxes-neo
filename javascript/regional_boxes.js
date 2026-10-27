@@ -41,6 +41,90 @@
         return [Math.min(a, c), Math.min(b, d), Math.max(a, c), Math.max(b, d)];
     }
 
+    // ---- JSON that sd-dynamic-prompts went through ----
+    // It reads every {...} in the prompt as a choice of one and drops the braces, so a layout reaches the model, and
+    // the prompt Forge saves, as "summary":"canvas":"single",...,"items":["label":...,"bbox":[...],"label":...],...
+    // The keys are still there to put the braces back: in a list, the list's first key starting again (or a key seen
+    // twice) begins the next object; a key with another key right after it opens an object of its own.
+
+    const NESTED = {};
+
+    // a reader of stripped JSON at text[at]: pairs() reads "key": value pairs until something else comes (a value is
+    // NESTED where an object begins), list() a [ ... ] list, end() where it got to. Both throw on anything malformed
+    function strippedReader(text, at) {
+        let i = at;
+        const fail = () => { throw new Error("not stripped JSON"); };
+        const space = () => { while (i < text.length && /\s/.test(text[i])) i++; };
+        const string = () => {
+            const start = i++;
+            while (i < text.length) {
+                if (text[i] === "\\") i += 2;
+                else if (text[i++] === '"') return JSON.parse(text.slice(start, i));
+            }
+            return fail();
+        };
+        const isKey = () => {
+            if (text[i] !== '"') return false;
+            const from = i;
+            try {
+                string();
+                space();
+                return text[i] === ":";
+            } catch (e) {
+                return false;
+            } finally {
+                i = from;
+            }
+        };
+        function pairs() {
+            const out = [];
+            for (;;) {
+                space();
+                while (text[i] === ",") { i++; space(); }
+                if (!isKey()) return out;
+                const key = string();
+                space();
+                i++;
+                space();
+                out.push([key, isKey() ? NESTED : value()]);
+            }
+        }
+        function value() {
+            if (text[i] === '"') return string();
+            if (text[i] === "[") return list();
+            const m = /^(?:true|false|null|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/.exec(text.slice(i));
+            if (!m) fail();
+            i += m[0].length;
+            return JSON.parse(m[0]);
+        }
+        function list() {
+            if (text[i] !== "[") fail();
+            i++;
+            space();
+            const out = [];
+            if (isKey()) {
+                let item = null, first = null;
+                for (const [key, v] of pairs()) {
+                    if (first === null) first = key;
+                    if (!item || key === first || key in item) out.push(item = {});
+                    item[key] = v;
+                }
+            } else {
+                for (;;) {
+                    space();
+                    if (text[i] === ",") { i++; continue; }
+                    if (text[i] === "]" || i >= text.length) break;
+                    out.push(value());
+                }
+            }
+            space();
+            if (text[i] !== "]") fail();
+            i++;
+            return out;
+        }
+        return {pairs, list, end: () => i};
+    }
+
     // ---- Coordinates (FLUX 3) ----
 
     function elementJson(el) {
@@ -113,7 +197,11 @@
         try {
             list = JSON.parse(prompt.slice(span[0], span[1]));
         } catch (e) {
-            return [];
+            try {
+                list = strippedReader(prompt, span[0]).list();
+            } catch (e2) {
+                return [];
+            }
         }
         return list.filter((o) => o && typeof o === "object").map((o, i) => {
             const base = {id: o.id, desc: o.desc || "", color: i % PALETTE.length, ref: 0, src: null, tgt: null};
@@ -221,16 +309,87 @@
         return {text: text.replace(NETWORK_TAG, "").replace(/[ 	]{2,}/g, " ").trim(), tags: text.match(NETWORK_TAG) || []};
     }
 
+    function isLayout(o) {
+        return !!o && typeof o === "object" && Array.isArray(o.items) && !!o.summary && typeof o.summary === "object" && !Array.isArray(o.summary);
+    }
+
+    // where the JSON object at the start of text ends, strings skipped; -1 when it never closes
+    function objectEnd(text) {
+        let depth = 0, inString = false, escaped = false;
+        for (let i = 0; i < text.length; i++) {
+            const c = text[i];
+            if (inString) {
+                if (escaped) escaped = false;
+                else if (c === "\\") escaped = true;
+                else if (c === '"') inString = false;
+            } else if (c === '"') inString = true;
+            else if (c === "{") depth++;
+            else if (c === "}" && --depth === 0) return i + 1;
+        }
+        return -1;
+    }
+
+    const MOSS_ROOT_KEYS = ["summary", "items", "bbox_coord_space", "bbox_format"];
+
+    // the prompt split into its layout (null when it holds none), the words after the layout and Forge's tags. The layout
+    // may be intact, have lost its braces to sd-dynamic-prompts (stripped), or have its parentheses escaped as \( \) for
+    // Forge's emphasis, the way Forge's own JSON Builder writes it
+    function mossParts(prompt) {
+        const {text, tags} = splitTags(prompt);
+        const parts = (layout, end, stripped) => ({layout, stripped, tags,
+            rest: layout ? text.slice(end).replace(/^[\s,]+|[\s,]+$/g, "").replace(/\s*,[\s,]*/g, ", ") : ""});
+        if (text.startsWith("{")) {
+            const end = objectEnd(text);
+            try {
+                const o = JSON.parse(text.slice(0, end).replace(/(?<!\\)((?:\\\\)*)\\([()])/g, "$1$2"));
+                if (end > 0 && isLayout(o)) return parts(o, end, false);
+            } catch (e) {
+                // not JSON: the prompt is a plain scene
+            }
+        } else if (/^"(summary|items)"\s*:/.test(text)) {
+            // the summary's keys follow "summary": until a root key closes it again
+            try {
+                const reader = strippedReader(text, 0);
+                const layout = {};
+                let into = layout;
+                for (const [key, v] of reader.pairs()) {
+                    if (v === NESTED) into = layout[key] = {};
+                    else if (MOSS_ROOT_KEYS.includes(key)) (into = layout)[key] = v;
+                    else into[key] = v;
+                }
+                if (isLayout(layout)) return parts(layout, reader.end(), true);
+            } catch (e) {
+                // a scene that only starts like a layout
+            }
+        }
+        return parts(null, 0, false);
+    }
+
+    // whether the prompt holds a layout, of either format, that has lost its braces
+    function layoutStripped(prompt) {
+        if (mossParts(prompt).stripped) return true;
+        const span = findLayoutSpan(prompt);
+        if (!span) return false;
+        try {
+            JSON.parse(prompt.slice(span[0], span[1]));
+            return false;
+        } catch (e) {
+            try {
+                return strippedReader(prompt, span[0]).list().length > 0;
+            } catch (e2) {
+                return false;
+            }
+        }
+    }
+
     // the layout the prompt holds, or null when the prompt is not one
     function parseMoss(prompt) {
-        const text = splitTags(prompt).text;
-        if (!text.startsWith("{")) return null;
-        try {
-            const o = JSON.parse(text);
-            return o && Array.isArray(o.items) && o.summary && typeof o.summary === "object" ? o : null;
-        } catch (e) {
-            return null;
-        }
+        return mossParts(prompt).layout;
+    }
+
+    // the layout as the prompt holds it, then the words that came after it and Forge's tags
+    function joinMoss(json, parts) {
+        return [json, parts.rest, parts.tags.join(" ")].filter(Boolean).join(" ");
     }
 
     // the scene caption: the summary's when the prompt already is a layout, else the prompt itself
@@ -246,11 +405,11 @@
     // the prompt with the boxes as a layout; without boxes, a layout turns back into its caption. options.caption stands in
     // for a prompt with no scene in it
     function writeMoss(prompt, elements, w, h, options) {
-        const current = parseMoss(prompt);
+        const parts = mossParts(prompt);
+        const current = parts.layout;
         const caption = mossCaption(prompt) || String((options && options.caption) || "").trim();
         const items = elements.filter(isMossComplete).map((e) => mossItem(e, w, h));
-        const tags = splitTags(prompt).tags.join(" ");
-        if (!items.length) return current ? [caption, tags].filter(Boolean).join(" ") : prompt;
+        if (!items.length) return current ? joinMoss(caption, parts) : prompt;
         const before = current ? current.summary : {};
         const meta = options && options.meta && options.meta.length ? options.meta : before.meta;
         const summary = {};
@@ -258,7 +417,7 @@
         summary.canvas = MOSS_CANVASES.includes(options && options.canvas) ? options.canvas : before.canvas || "single";
         summary.caption = caption;
         if (before.palette) summary.palette = before.palette;
-        return [JSON.stringify({summary, items, bbox_coord_space: "abs_centralized", bbox_format: "yxyx"}), tags].filter(Boolean).join(" ");
+        return joinMoss(JSON.stringify({summary, items, bbox_coord_space: "abs_centralized", bbox_format: "yxyx"}), parts);
     }
 
     // the panel's elements, meta and canvas from a layout in the prompt, on a w x h picture; null when there is none
@@ -286,14 +445,15 @@
     // wrote for from = [w, h] (edited by hand, or another layout): the boxes are recomputed from the panel's own, so going
     // back and forth between sizes never drifts, and anything else in the layout (captions, words) is kept as it is
     function rescaleMoss(prompt, elements, from, to) {
-        const layout = parseMoss(prompt);
+        const parts = mossParts(prompt);
+        const layout = parts.layout;
         const done = elements.filter(isMossComplete);
         if (!layout || done.length !== layout.items.length) return null;
         const ours = layout.items.every((o, i) => Array.isArray(o && o.bbox) &&
             JSON.stringify(o.bbox) === JSON.stringify(mossBox(done[i].tgt, from[0], from[1])));
         if (!ours) return null;
         layout.items.forEach((o, i) => { o.bbox = mossBox(done[i].tgt, to[0], to[1]); });
-        return [JSON.stringify(layout), splitTags(prompt).tags.join(" ")].filter(Boolean).join(" ");
+        return joinMoss(JSON.stringify(layout), parts);
     }
 
     // ---- moving and resizing a drawn box (0-1000 grid) ----
@@ -344,7 +504,7 @@
 
     const api = {KINDS, FORMATS, PALETTE, buildLayout, writeLayout, readLayout, findLayoutSpan, elementJson, isComplete,
         buildNotes, writeNotes, marksPayload, MOSS_LABELS, MOSS_CANVASES, mossBox, gridBox, isMossComplete, parseMoss,
-        mossCaption, parseMeta, writeMoss, readMoss, mossOutOfBounds, rescaleMoss, moveBox, resizeBox, centerBox, resizeByTarget,
+        mossParts, layoutStripped, mossCaption, parseMeta, writeMoss, readMoss, mossOutOfBounds, rescaleMoss, moveBox, resizeBox, centerBox, resizeByTarget,
         resolveFormat};
     if (typeof module !== "undefined" && module.exports) {
         module.exports = api;
@@ -449,8 +609,28 @@
             setValue(ta, next);
         }
 
-        // MOSS boxes are pixels of the Width x Height they were written at: say so when the size has changed since
+        // sd-dynamic-prompts' own switch in this tab: on, it drops the braces of the layout before the model reads it
+        const dynamicPrompts = () => app.querySelector(`#tab_${tab} #sddp-dynamic-prompts-enabled input[type=checkbox]`);
+
+        // the warnings the formats that write JSON share, then MOSS's own about the size
         function checkSize() {
+            const lines = [];
+            if ((format() === FORMATS.coords || format() === FORMATS.moss) && dynamicPrompts()?.checked) {
+                lines.push("⚠ Dynamic Prompts is on: it removes the layout's { } before the model reads it, so the boxes are lost. "
+                    + "Turn off Dynamic Prompts enabled in its accordion below.");
+            }
+            const ta = prompt();
+            if (ta && (format() === FORMATS.coords || format() === FORMATS.moss) && layoutStripped(ta.value)) {
+                lines.push("⚠ The layout in the prompt lost its { }: click Read from prompt, then Write to prompt, to put them back.");
+            }
+            lines.push(mossWarning());
+            const text = lines.filter(Boolean).join("\n");
+            warning.textContent = text;
+            warning.style.display = text ? "" : "none";
+        }
+
+        // MOSS boxes are pixels of the Width x Height they were written at: say so when the size has changed since
+        function mossWarning() {
             const ta = prompt();
             const [w, h] = size();
             let text = format() === FORMATS.moss ? state.alert : "";
@@ -465,8 +645,7 @@
                 }
             }
             if (!text && state.note && format() === FORMATS.moss && ta && parseMoss(ta.value)) text = `✓ ${state.note}`;
-            warning.textContent = text;
-            warning.style.display = text ? "" : "none";
+            return text;
         }
 
         function syncData() {
@@ -880,6 +1059,7 @@
             if (node) node.addEventListener("input", fitFrame);
         }
         prompt()?.addEventListener("input", () => { state.alert = ""; checkSize(); });
+        dynamicPrompts()?.addEventListener("change", checkSize);
         if (tab === "img2img") {
             // "Resize to" / "Resize by", the scale and the input picture all change the size Forge's preview shows
             app.querySelector("#img2img_tabs_resize")?.addEventListener("click", () => setTimeout(fitFrame, 100));

@@ -162,6 +162,47 @@ const tests = {
         assert.equal(JSON.parse(layout).summary.canvas, "single");
     },
 
+    "MOSS: a layout that lost its braces to sd-dynamic-prompts is read, and written back whole"() {
+        // as Forge saved it, with the commas a prompt formatter put between the tags
+        const stripped = '"summary":"canvas":"single","caption":"a realistic photograph","items":["label":"character",' +
+            '"caption":"princess daisy, using a small yellow bikini","bbox":[-298,0,808,648],"label":"character",' +
+            '"caption":"hatsune miku, using a small black bikini","bbox":[-296,-648,808,3],"label":"object",' +
+            '"caption":"ocean, beach","bbox":[-808,-648,808,648]],"bbox_coord_space":"abs_centralized","bbox_format":"yxyx",' +
+            "<lora:MOSS venusbody-moss-image-base-epoch-10:1.0>,venusbody,<lora:MOSS_DMD_8STEP_QKV_FORGE_FIX:1.0>,";
+        const parts = R.mossParts(stripped);
+        assert.equal(parts.stripped, true);
+        assert.deepEqual(parts.layout.summary, {canvas: "single", caption: "a realistic photograph"});
+        assert.deepEqual(parts.layout.items.map((o) => o.caption), ["princess daisy, using a small yellow bikini",
+            "hatsune miku, using a small black bikini", "ocean, beach"]);
+        assert.deepEqual(parts.layout.items[1].bbox, [-296, -648, 808, 3]);
+        assert.equal(parts.rest, "venusbody");
+        const read = R.readMoss(stripped, 1296, 1616);
+        assert.equal(read.elements.length, 3);
+        const written = R.writeMoss(stripped, read.elements, 1296, 1616, {});
+        assert.ok(written.startsWith('{"summary":{"canvas":"single","caption":"a realistic photograph"},"items":[{'));
+        assert.ok(written.endsWith("} venusbody <lora:MOSS venusbody-moss-image-base-epoch-10:1.0> <lora:MOSS_DMD_8STEP_QKV_FORGE_FIX:1.0>"));
+        assert.deepEqual(JSON.parse(written.slice(0, written.indexOf("} venusbody") + 1)).items, parts.layout.items);
+    },
+
+    "MOSS: words after an intact layout stay, and the JSON Builder's \\( \\) are read"() {
+        const layout = '{"summary":{"canvas":"single","caption":"A lake \\(at dawn\\)."},"items":[{"label":"object",' +
+            '"caption":"A boat.","bbox":[-10,-10,10,10]}],"bbox_coord_space":"abs_centralized","bbox_format":"yxyx"}';
+        const parts = R.mossParts(`${layout} venusbody <lora:a:1>`);
+        assert.equal(parts.layout.summary.caption, "A lake (at dawn).");
+        assert.equal(parts.rest, "venusbody");
+        assert.equal(R.mossParts("A scene with {curly} words.").layout, null);
+        assert.equal(R.mossParts('"summary": is how it starts').layout, null);
+    },
+
+    "coordinates: a list that lost its braces is read"() {
+        const prompt = 'A cat on a sofa. ["id": "cat", "bbox": [100, 200, 600, 700], "desc": "a ginger cat", ' +
+            '"id": "lamp", "bbox": [0, 0, 300, 150], "desc": "a brass lamp"]';
+        const list = R.readLayout(prompt);
+        assert.deepEqual(list.map((e) => [e.id, e.tgt, e.desc]), [["cat", [100, 200, 600, 700], "a ginger cat"],
+            ["lamp", [0, 0, 300, 150], "a brass lamp"]]);
+        assert.ok(R.writeLayout(prompt, R.buildLayout(list)).startsWith('A cat on a sofa. [{"id": "cat"'));
+    },
+
     "MOSS: a cleared prompt takes the remembered scene, a new one wins over it"() {
         const box = [{label: "object", desc: "A boat.", tgt: [1, 1, 500, 500]}];
         assert.equal(R.mossCaption(R.writeMoss("", box, 1024, 1024, {caption: "A quiet lake."})), "A quiet lake.");

@@ -155,6 +155,7 @@ For edits, use img2img with **Denoising strength** 1 and the model's reference o
 - The frame takes the shape of your **Width** and **Height**
 - MOSS-Image layouts are in pixels of the picture's size, so a new size moves the boxes in the prompt with it; if you changed the boxes' numbers by hand in the prompt, they are left as they are and the panel asks you to **Write to prompt** again
 - With MOSS-Image, write the scene description in English for the best results, and give text boxes room for their words
+- Turn off **Dynamic Prompts enabled** (sd-dynamic-prompts) when you use FLUX 3 or MOSS-Image layouts: it removes the layout's `{ }` before the model reads it, and the boxes are lost. The panel warns you while it is on; **Read from prompt** still reads a layout that lost its braces, and **Write to prompt** puts them back
 
 ---
 
