@@ -51,6 +51,19 @@
     inset: 0;
 }
 
+/* "Hide the boxes": the picture whole and at full strength, and nothing to draw on meanwhile */
+.regional-boxes-frame.boxes-hidden {
+    cursor: default;
+}
+
+.regional-boxes-frame.boxes-hidden .regional-boxes-boxes {
+    display: none;
+}
+
+.regional-boxes-frame.boxes-hidden .regional-boxes-bg {
+    opacity: 1;
+}
+
 .regional-boxes-box {
     position: absolute;
     box-sizing: border-box;
@@ -143,6 +156,29 @@
 .regional-boxes-row input.regional-boxes-desc {
     flex: 1;
     min-width: 12em;
+}
+
+/* a field Tag Autocomplete completes: its results open under it, at its left edge, over what follows */
+.regional-boxes-ac-wrap {
+    position: relative;
+    display: flex;
+    flex: 1;
+    min-width: 0;
+}
+
+.regional-boxes-row .regional-boxes-ac-wrap {
+    min-width: 12em;
+}
+
+.regional-boxes-ac-wrap > input,
+.regional-boxes-ac-wrap > textarea {
+    flex: 1;
+    min-width: 0;
+}
+
+.regional-boxes-ac-wrap > [class^="autocompleteParent"] {
+    left: 0 !important;
+    min-width: 18em;
 }
 
 .regional-boxes-row button,

@@ -4,7 +4,7 @@
 
 [![Forge Neo](https://img.shields.io/badge/Forge-Neo-blue)](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)
 [![Gradio](https://img.shields.io/badge/Gradio-4.40.0-orange)](https://gradio.app/)
-[![Version](https://img.shields.io/badge/Version-0.2.4-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
+[![Version](https://img.shields.io/badge/Version-0.2.5-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
 
 > **Extension for [Stable Diffusion WebUI Forge - Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)**
@@ -31,6 +31,13 @@ Draw boxes with the mouse to tell **FLUX 3 Image Klein**, **Qwen-Image 2.1** or 
 ---
 
 ## 🆕 What's New
+
+### v0.2.5 - Styles, Box Tags, Hide the Boxes and Autocomplete
+
+- **Styles go into the layout's caption** - with a MOSS-Image layout as the prompt, the Styles you pick no longer land after the layout, outside it: their words are added to the scene caption, the way Forge Neo would apply them to a plain prompt, also a style with `{prompt}`
+- **Box tags say what each box holds** - with MOSS-Image, a box on the frame is tagged with its words or the start of its description, *1 WINTER FOX*, *2 a red fox sitting…*, instead of only *1 text*, *2 character*; only the panel shows it, the layout is the same
+- **Hide the boxes** - see the picture behind them whole, at full strength, and turn them back on to keep drawing
+- **Tag Autocomplete in the panel** - Scene, Extra and each box's description complete tags, LoRAs and wildcards as the prompt does, with [Tag Autocomplete](https://github.com/DominikDoom/a1111-sd-webui-tagcomplete) installed
 
 ### v0.2.4 - Scene and Extra
 
@@ -108,6 +115,7 @@ Draw boxes with the mouse to tell **FLUX 3 Image Klein**, **Qwen-Image 2.1** or 
 - Under each box, its edges in pixels from the center of the picture, as the layout uses them - type a number to set an edge exactly
 - **Read from prompt** loads a layout back, yours or one you pasted, to adjust it
 - **Extra** holds LoRA tags such as `<lora:name:1>` and their trigger words: they go after the layout, where Forge Neo still finds them, and tags already in the prompt are kept
+- **Styles** picked under Generate go into the scene caption when you generate, not after the layout, also with sd-dynamic-prompts on; their negative part goes to the negative prompt as usual, and the infotext names them under *Regional boxes styles*
 - Change the size and the layout follows: the boxes in the prompt are moved to fit, and the panel says so
 - In img2img, draw over the input picture and describe the new version: things keep their place, while captions and words can change
 - Works in txt2img and img2img; needs the [MOSS-Image extension](https://github.com/eduardoabreu81/moss-image-forge-neo) 0.1.2 or newer, which keeps the layout whole with sd-dynamic-prompts installed
@@ -165,6 +173,9 @@ For edits, use img2img with **Denoising strength** 1 and the model's reference o
 - Marks work best with a box drawn a bit larger than the thing to change
 - Drag a box by its name tag to move it, and by the corners of the selected box to resize it; dragging anywhere else draws a new box, even inside another one
 - **⇔** and **⇕** center a box across or down the picture, keeping its size
+- **Hide the boxes** shows the picture behind them whole; no box can be drawn until you turn them back on
+- With MOSS-Image, each box's tag on the frame shows its words or the start of its description, so you can tell the boxes apart over the last picture
+- With Tag Autocomplete installed, the panel's description fields complete tags, LoRAs and wildcards too
 - Click a box without dragging to select it; **Redraw** draws it again; ✕ deletes it
 - Writing again replaces the boxes already in the prompt, so draw, adjust and write as often as you like
 - The frame takes the shape of your **Width** and **Height**

@@ -320,6 +320,14 @@ const tests = {
         assert.equal(R.resizeByTarget(undefined), null);
     },
 
+    "MOSS: a box's tag shows what it holds, shortened, else its label"() {
+        assert.equal(R.mossTag({label: "text", text: "WINTER\nFOX", desc: "a large title"}, 0), "1 WINTER FOX");
+        assert.equal(R.mossTag({label: "text", text: " ", desc: "a large title"}, 1), "2 a large title");
+        assert.equal(R.mossTag({label: "character", text: "WINTER FOX", desc: "a red fox sitting in fresh snow"}, 2), "3 a red fox sitting in fr…");
+        assert.equal(R.mossTag({label: "object", desc: ""}, 3), "4 object");
+        assert.equal(R.mossTag({desc: "  "}, 4), "5 object");
+    },
+
     "MOSS: only a layout is read, and boxes past the picture are noticed"() {
         for (const prompt of ["A cat on a sofa.", '{"summary": ', '[{"id": "a", "bbox": [0, 0, 9, 9], "desc": ""}]', '{"items": []}', ""]) {
             assert.equal(R.parseMoss(prompt), null, prompt);

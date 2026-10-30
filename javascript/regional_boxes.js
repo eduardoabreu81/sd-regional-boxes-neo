@@ -288,6 +288,14 @@
         return MOSS_LABELS.includes(el.label) ? el.label : "object";
     }
 
+    // the box's tag on the frame: its number and what it holds (a text box's words, else its caption), shortened; only
+    // its label while it holds nothing yet. Shown only: the layout has no name for an item
+    function mossTag(el, i) {
+        const words = String((mossLabel(el) === "text" && String(el.text || "").trim()) || el.desc || "").replace(/\s+/g, " ").trim();
+        const shown = words.length > 24 ? `${words.slice(0, 23).trimEnd()}…` : words;
+        return `${i + 1} ${shown || mossLabel(el)}`;
+    }
+
     function isMossComplete(el) {
         if (!el.tgt || !String(el.desc || "").trim()) return false;
         return mossLabel(el) !== "text" || !!String(el.text || "").trim();
@@ -517,7 +525,7 @@
     }
 
     const api = {KINDS, FORMATS, PALETTE, buildLayout, writeLayout, readLayout, findLayoutSpan, elementJson, isComplete,
-        buildNotes, writeNotes, marksPayload, MOSS_LABELS, MOSS_CANVASES, mossBox, gridBox, isMossComplete, parseMoss,
+        buildNotes, writeNotes, marksPayload, MOSS_LABELS, MOSS_CANVASES, mossBox, gridBox, isMossComplete, mossTag, parseMoss,
         mossParts, mossExtra, layoutStripped, mossCaption, parseMeta, writeMoss, readMoss, mossOutOfBounds, rescaleMoss, moveBox, resizeBox, centerBox, resizeByTarget,
         resolveFormat};
     if (typeof module !== "undefined" && module.exports) {
@@ -543,6 +551,12 @@
         return node;
     }
 
+    // a field Tag Autocomplete may complete, in a box of its own: its results are placed from the field's offset in
+    // its container, which is right only when the field starts at the container's left edge
+    function suggesting(field) {
+        return el("span", {class: "regional-boxes-ac-wrap"}, field);
+    }
+
     function setValue(textarea, value) {
         if (!textarea || textarea.value === value) return;
         textarea.value = value;
@@ -563,10 +577,10 @@
         // alert: why the last Write to prompt did nothing, shown until the prompt changes
         // caption, extra: the Scene and Extra fields, the layout's caption and what follows the layout; edited: which of
         // them were typed into since the last Write or Read (the others follow the prompt)
-        // last: txt2img shows its last picture behind the boxes
+        // last: txt2img shows its last picture behind the boxes; hidden: the boxes are hidden, to see the picture whole
         const state = {elements: [], selected: -1, armed: null, counter: 0, format: FORMATS.auto, draw: true,
             meta: "", canvas: "single", written: null, note: "", alert: "", caption: "", extra: "",
-            edited: {caption: false, extra: false}, last: true};
+            edited: {caption: false, extra: false}, last: true, hidden: false};
         let listedSize = "";
 
         const formatSelect = el("select", {class: "regional-boxes-format", onchange: (ev) => { state.format = ev.target.value; render(); }},
@@ -576,22 +590,28 @@
         const lastToggle = el("input", {type: "checkbox", checked: true, onchange: (ev) => { state.last = ev.target.checked; showBackground(); }});
         const lastLabel = el("label", {class: "regional-boxes-draw", title: "Stretched to the current Width and Height"},
             lastToggle, " Show the last picture behind the boxes");
+        const hideToggle = el("input", {type: "checkbox", onchange: (ev) => {
+            state.hidden = ev.target.checked;
+            frame.classList.toggle("boxes-hidden", state.hidden);
+        }});
+        const hideLabel = el("label", {class: "regional-boxes-draw", title: "The picture behind them, whole; no box can be drawn meanwhile"},
+            hideToggle, " Hide the boxes");
         const resolved = el("span", {class: "regional-boxes-resolved"});
         const metaInput = el("input", {type: "text", class: "regional-boxes-meta", placeholder: "poster, flat illustration...",
             title: "Medium and genre of the picture, separated by commas (summary.meta)", oninput: (ev) => { state.meta = ev.target.value; }});
         const canvasSelect = el("select", {title: "One picture, panels, or a collage (summary.canvas)", onchange: (ev) => { state.canvas = ev.target.value; }},
             ...MOSS_CANVASES.map((k) => el("option", {value: k}, k.replace("_", " "))));
         const mossOptions = el("span", {class: "regional-boxes-moss"}, "Meta ", metaInput, " Canvas ", canvasSelect);
-        const top = el("div", {class: "regional-boxes-top"}, el("span", {}, "Format "), formatSelect, resolved, tab === "img2img" ? drawLabel : lastLabel, mossOptions);
-        const sceneInput = el("textarea", {class: "regional-boxes-scene-text", rows: "2",
+        const top = el("div", {class: "regional-boxes-top"}, el("span", {}, "Format "), formatSelect, resolved, tab === "img2img" ? drawLabel : lastLabel, hideLabel, mossOptions);
+        const sceneInput = el("textarea", {class: "regional-boxes-scene-text regional-boxes-ac", rows: "2",
             placeholder: "The whole picture in a sentence or two: who is there, doing what, where, in what light...",
             title: "The scene, the layout's caption (summary.caption)",
             oninput: (ev) => { state.caption = ev.target.value; state.edited.caption = true; state.alert = ""; checkSize(); }});
-        const extraInput = el("input", {type: "text", class: "regional-boxes-extra", placeholder: "<lora:...> trigger words",
+        const extraInput = el("input", {type: "text", class: "regional-boxes-extra regional-boxes-ac", placeholder: "<lora:...> trigger words",
             title: "Written after the layout, outside it: LoRA tags and their trigger words",
             oninput: (ev) => { state.extra = ev.target.value; state.edited.extra = true; }});
         const sceneRow = el("div", {class: "regional-boxes-scene"},
-            el("label", {}, "Scene", sceneInput), el("label", {}, "Extra", extraInput));
+            el("label", {}, "Scene", suggesting(sceneInput)), el("label", {}, "Extra", suggesting(extraInput)));
 
         const frame = el("div", {class: "regional-boxes-frame"});
         const background = el("img", {class: "regional-boxes-bg", draggable: "false", alt: ""});
@@ -607,6 +627,17 @@
             readButton,
             el("button", {class: "lg secondary gradio-button", onclick: () => clear()}, "Clear"));
         host.append(top, sceneRow, hint, warning, frame, list, buttons);
+
+        // Tag Autocomplete, when installed, on the fields that describe things: hooked on their first focus, since the
+        // rows are rebuilt and Tag Autocomplete only finds the fields that are there when the page loads
+        host.addEventListener("focusin", (ev) => {
+            if (!ev.target.classList.contains("regional-boxes-ac") || typeof window.addAutocompleteToArea !== "function") return;
+            try {
+                window.addAutocompleteToArea(ev.target);
+            } catch (e) {
+                // not set up yet: the next focus tries again
+            }
+        });
 
         const prompt = () => app.querySelector(`#${tab}_prompt textarea`);
         const dataBox = () => app.querySelector(`#regional_boxes_${tab}_data textarea`);
@@ -766,7 +797,7 @@
                         : (which === "tgt" && e.kind === KINDS.remove) || (which === "src" && (e.kind === KINDS.place || e.kind === KINDS.add));
                     if (!b || hidden) continue;
                     const [t, l, bo, r] = normBox(b);
-                    const label = marks ? colorName(e) : moss ? `${i + 1} ${mossLabel(e)}` : which === "src" ? `${e.id} (from)` : e.id;
+                    const label = marks ? colorName(e) : moss ? mossTag(e, i) : which === "src" ? `${e.id} (from)` : e.id;
                     // the name tag moves the box and the corners of the selected box resize it; the rest of the box stays
                     // free, so a box can be drawn inside another
                     const tag = el("span", {class: "regional-boxes-tag", title: "Drag to move the box",
@@ -804,8 +835,8 @@
                     // typing updates the state in place: rebuilding the list would drop the focus and the next click
                     const row = el("div", {class: `regional-boxes-row${i === state.selected ? " selected" : ""}${isMarked(e) ? "" : " incomplete"}`},
                         swatch, el("span", {class: "regional-boxes-color"}, colorName(e)),
-                        el("input", {type: "text", class: "regional-boxes-desc", value: e.desc, placeholder: "What to do inside the box: add a red beanie, change the shirt to denim, remove it...",
-                            oninput: (ev) => { e.desc = ev.target.value; row.classList.toggle("incomplete", !isMarked(e)); syncData(); }}),
+                        suggesting(el("input", {type: "text", class: "regional-boxes-desc regional-boxes-ac", value: e.desc, placeholder: "What to do inside the box: add a red beanie, change the shirt to denim, remove it...",
+                            oninput: (ev) => { e.desc = ev.target.value; row.classList.toggle("incomplete", !isMarked(e)); syncData(); }})),
                         ...centerButtons(e),
                         el("button", {class: "secondary gradio-button", title: "Draw the box again", onclick: () => arm(i, "tgt")}, "Redraw"),
                         deleteButton);
@@ -832,7 +863,7 @@
                         row.classList.toggle("incomplete", !isComplete(e));
                         renderBoxes();
                     }}),
-                    el("input", {type: "text", class: "regional-boxes-desc", value: e.desc, placeholder: "Short description: look, colors, material", oninput: (ev) => { e.desc = ev.target.value; }}),
+                    suggesting(el("input", {type: "text", class: "regional-boxes-desc regional-boxes-ac", value: e.desc, placeholder: "Short description: look, colors, material", oninput: (ev) => { e.desc = ev.target.value; }})),
                     kind, ref,
                     needsSrc ? el("button", {class: "secondary gradio-button", title: "Draw where it is in the reference", onclick: () => arm(i, "src")}, e.src ? "Redraw from" : "Draw from") : "",
                     e.kind !== KINDS.remove ? el("button", {class: "secondary gradio-button", title: "Draw where it goes", onclick: () => arm(i, "tgt")}, e.tgt ? "Redraw" : "Draw") : "",
@@ -860,7 +891,7 @@
             const row = el("div", {class: `regional-boxes-row${i === state.selected ? " selected" : ""}${isMossComplete(e) ? "" : " incomplete"}`});
             const touch = () => row.classList.toggle("incomplete", !isMossComplete(e));
             const text = el("textarea", {class: "regional-boxes-text", rows: "1", placeholder: "The exact words to write (Enter for a new line)",
-                oninput: (ev) => { e.text = ev.target.value; touch(); }});
+                oninput: (ev) => { e.text = ev.target.value; touch(); renderBoxes(); }});
             text.value = e.text || "";
             const label = el("select", {title: "What the box holds", onchange: (ev) => {
                 e.label = ev.target.value;
@@ -871,9 +902,9 @@
             label.value = mossLabel(e);
             text.style.display = label.value === "text" ? "" : "none";
             row.append(swatch, el("span", {class: "regional-boxes-number"}, String(i + 1)), label,
-                el("input", {type: "text", class: "regional-boxes-desc", value: e.desc,
+                suggesting(el("input", {type: "text", class: "regional-boxes-desc regional-boxes-ac", value: e.desc,
                     placeholder: "How it looks: a flat blue mountain, a large dark-blue uppercase title...",
-                    oninput: (ev) => { e.desc = ev.target.value; touch(); }}),
+                    oninput: (ev) => { e.desc = ev.target.value; touch(); renderBoxes(); }})),
                 text,
                 el("button", {class: "secondary gradio-button", title: "Draw the box again", onclick: () => arm(i, "tgt")}, "Redraw"),
                 deleteButton);
@@ -1032,7 +1063,7 @@
             renderBoxes();
         }
         frame.addEventListener("mousedown", (ev) => {
-            if (ev.button !== 0) return;
+            if (ev.button !== 0 || state.hidden) return;
             ev.preventDefault();
             fitFrame();
             start = point(ev);
