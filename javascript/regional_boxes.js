@@ -613,7 +613,7 @@
         const sceneRow = el("div", {class: "regional-boxes-scene"},
             el("label", {}, "Scene", suggesting(sceneInput)), el("label", {}, "Extra", suggesting(extraInput)));
 
-        const frame = el("div", {class: "regional-boxes-frame"});
+        const frame = el("div", {class: "regional-boxes-frame", style: "touch-action: none;"});
         const background = el("img", {class: "regional-boxes-bg", draggable: "false", alt: ""});
         const layer = el("div", {class: "regional-boxes-boxes"});
         frame.append(background, layer);
@@ -801,14 +801,14 @@
                     // the name tag moves the box and the corners of the selected box resize it; the rest of the box stays
                     // free, so a box can be drawn inside another
                     const tag = el("span", {class: "regional-boxes-tag", title: "Drag to move the box",
-                        onmousedown: (ev) => grab(ev, i, which, "move")}, label);
+                        onpointerdown: (ev) => grab(ev, i, which, "move")}, label);
                     const box = el("div", {class: `regional-boxes-box ${which}${i === state.selected ? " selected" : ""}`}, tag);
                     Object.assign(box.style, {top: `${t / 10}%`, left: `${l / 10}%`, height: `${(bo - t) / 10}%`, width: `${(r - l) / 10}%`, borderColor: colorOf(e)});
                     tag.style.background = colorOf(e);
                     if (i === state.selected) {
                         for (const corner of ["nw", "ne", "sw", "se"]) {
                             const handle = el("div", {class: `regional-boxes-handle ${corner}`, title: "Drag to resize the box",
-                                onmousedown: (ev) => grab(ev, i, which, corner)});
+                                onpointerdown: (ev) => grab(ev, i, which, corner)});
                             handle.style.borderColor = colorOf(e);
                             box.append(handle);
                         }
@@ -1062,7 +1062,7 @@
             held = {i, which, mode, from: rawPoint(ev), box: state.elements[i][which]};
             renderBoxes();
         }
-        frame.addEventListener("mousedown", (ev) => {
+        frame.addEventListener("pointerdown", (ev) => {
             if (ev.button !== 0 || state.hidden) return;
             ev.preventDefault();
             fitFrame();
@@ -1070,7 +1070,7 @@
             ghost = el("div", {class: "regional-boxes-box ghost"});
             layer.append(ghost);
         });
-        window.addEventListener("mousemove", (ev) => {
+        window.addEventListener("pointermove", (ev) => {
             if (held) {
                 const [y, x] = rawPoint(ev);
                 state.elements[held.i][held.which] = held.mode === "move"
@@ -1083,7 +1083,7 @@
             const [t, l, b, r] = normBox([...start, ...point(ev)]);
             Object.assign(ghost.style, {top: `${t / 10}%`, left: `${l / 10}%`, height: `${(b - t) / 10}%`, width: `${(r - l) / 10}%`});
         });
-        window.addEventListener("mouseup", (ev) => {
+        window.addEventListener("pointerup", (ev) => {
             if (held) {
                 held = null;
                 render();
