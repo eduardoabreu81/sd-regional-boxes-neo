@@ -613,7 +613,7 @@
         const sceneRow = el("div", {class: "regional-boxes-scene"},
             el("label", {}, "Scene", suggesting(sceneInput)), el("label", {}, "Extra", suggesting(extraInput)));
 
-        const frame = el("div", {class: "regional-boxes-frame", style: "touch-action: none;"});
+        const frame = el("div", {class: "regional-boxes-frame"});
         const background = el("img", {class: "regional-boxes-bg", draggable: "false", alt: ""});
         const layer = el("div", {class: "regional-boxes-boxes"});
         frame.append(background, layer);
@@ -1053,7 +1053,8 @@
         }
 
         function grab(ev, i, which, mode) {
-            if (ev.button !== 0) return;
+            // a second finger on a touch screen is not primary: it would take a box while another is held
+            if (ev.button !== 0 || !ev.isPrimary) return;
             // the frame below would start a new box
             ev.preventDefault();
             ev.stopPropagation();
@@ -1063,7 +1064,7 @@
             renderBoxes();
         }
         frame.addEventListener("pointerdown", (ev) => {
-            if (ev.button !== 0 || state.hidden) return;
+            if (ev.button !== 0 || !ev.isPrimary || state.hidden) return;
             ev.preventDefault();
             fitFrame();
             start = point(ev);
@@ -1071,6 +1072,7 @@
             layer.append(ghost);
         });
         window.addEventListener("pointermove", (ev) => {
+            if (!ev.isPrimary) return;
             if (held) {
                 const [y, x] = rawPoint(ev);
                 state.elements[held.i][held.which] = held.mode === "move"
@@ -1083,7 +1085,22 @@
             const [t, l, b, r] = normBox([...start, ...point(ev)]);
             Object.assign(ghost.style, {top: `${t / 10}%`, left: `${l / 10}%`, height: `${(b - t) / 10}%`, width: `${(r - l) / 10}%`});
         });
+        // the browser or the system took the touch (a gesture, a notification): no pointerup follows, so the box
+        // held goes back to where it was and a box being drawn is dropped
+        window.addEventListener("pointercancel", (ev) => {
+            if (!ev.isPrimary) return;
+            if (held) {
+                state.elements[held.i][held.which] = held.box;
+                held = null;
+                render();
+                return;
+            }
+            start = null;
+            if (ghost) ghost.remove();
+            ghost = null;
+        });
         window.addEventListener("pointerup", (ev) => {
+            if (!ev.isPrimary) return;
             if (held) {
                 held = null;
                 render();

@@ -28,6 +28,8 @@
     border-radius: 4px;
     cursor: crosshair;
     user-select: none;
+    /* a drag on a touch screen draws or moves a box, instead of scrolling or zooming the page */
+    touch-action: none;
     overflow: hidden;
 }
 
