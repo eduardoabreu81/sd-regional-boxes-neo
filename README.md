@@ -4,14 +4,14 @@
 
 [![Forge Neo](https://img.shields.io/badge/Forge-Neo-blue)](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)
 [![Gradio](https://img.shields.io/badge/Gradio-4.40.0-orange)](https://gradio.app/)
-[![Version](https://img.shields.io/badge/Version-0.2.5-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
+[![Version](https://img.shields.io/badge/Version-0.2.6-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
 
 > **Extension for [Stable Diffusion WebUI Forge - Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)**
 
 </div>
 
-Draw boxes with the mouse to tell **FLUX 3 Image Klein**, **Qwen-Image 2.1** or **MOSS-Image** where things go - the panel hands them to each model in the format it was trained on: **coordinates in the prompt** for FLUX 3, **boxes drawn on the picture** for Qwen-Image 2.1, a **layout prompt** for MOSS-Image. No coordinates to type, no image editor needed.
+Draw boxes with the mouse, or a finger on a touch screen, to tell **FLUX 3 Image Klein**, **Qwen-Image 2.1** or **MOSS-Image** where things go - the panel hands them to each model in the format it was trained on: **coordinates in the prompt** for FLUX 3, **boxes drawn on the picture** for Qwen-Image 2.1, a **layout prompt** for MOSS-Image. No coordinates to type, no image editor needed.
 
 > [!Important]
 > This extension requires an up-to-date **Forge Neo** (the `neo` branch). It only writes the prompt and, for Qwen-style edits, draws the boxes on the input picture - nothing of Forge Neo is changed.
@@ -31,6 +31,12 @@ Draw boxes with the mouse to tell **FLUX 3 Image Klein**, **Qwen-Image 2.1** or 
 ---
 
 ## 🆕 What's New
+
+### v0.2.6 - Touch Screens
+
+- **Draw, move and resize boxes with a finger** - on a phone, a tablet or a touch screen, the frame works as it does with the mouse; a drag on it no longer scrolls or zooms the page (thanks to [1243a-alt](https://github.com/1243a-alt))
+- A touch the system takes away in the middle of a drag, such as a gesture or a notification, puts the box back where it was instead of leaving it stuck to the finger
+- A second finger on the frame is ignored while the first one draws or moves a box
 
 ### v0.2.5 - Styles, Box Tags, Hide the Boxes and Autocomplete
 
@@ -177,6 +183,7 @@ For edits, use img2img with **Denoising strength** 1 and the model's reference o
 - With MOSS-Image, each box's tag on the frame shows its words or the start of its description, so you can tell the boxes apart over the last picture
 - With Tag Autocomplete installed, the panel's description fields complete tags, LoRAs and wildcards too
 - Click a box without dragging to select it; **Redraw** draws it again; ✕ deletes it
+- On a touch screen, drag with one finger as you would with the mouse; to scroll the page, swipe outside the frame
 - Writing again replaces the boxes already in the prompt, so draw, adjust and write as often as you like
 - The frame takes the shape of your **Width** and **Height**
 - MOSS-Image layouts are in pixels of the picture's size, so a new size moves the boxes in the prompt with it; if you changed the boxes' numbers by hand in the prompt, they are left as they are and the panel asks you to **Write to prompt** again
