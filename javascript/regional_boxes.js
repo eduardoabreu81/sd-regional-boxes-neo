@@ -317,6 +317,34 @@
         return {text: text.replace(NETWORK_TAG, "").replace(/[ 	]{2,}/g, " ").trim(), tags: text.match(NETWORK_TAG) || []};
     }
 
+    // splitTags for a prompt that holds a layout: a tag inside one of its strings (a box's caption) is the box's own and
+    // stays there, where Forge still finds it; only the tags around the layout are taken out
+    function splitOuterTags(prompt) {
+        const text = String(prompt || "");
+        const tag = new RegExp(NETWORK_TAG.source, "iy");
+        let out = "", inString = false, escaped = false;
+        const tags = [];
+        for (let i = 0; i < text.length; i++) {
+            const c = text[i];
+            if (inString) {
+                if (escaped) escaped = false;
+                else if (c === "\\") escaped = true;
+                else if (c === '"') inString = false;
+            } else if (c === '"') inString = true;
+            else if (c === "<") {
+                tag.lastIndex = i;
+                const m = tag.exec(text);
+                if (m) {
+                    tags.push(m[0]);
+                    i += m[0].length - 1;
+                    continue;
+                }
+            }
+            out += c;
+        }
+        return {text: out.replace(/[ 	]{2,}/g, " ").trim(), tags};
+    }
+
     function isLayout(o) {
         return !!o && typeof o === "object" && Array.isArray(o.items) && !!o.summary && typeof o.summary === "object" && !Array.isArray(o.summary);
     }
@@ -343,8 +371,15 @@
     // may be intact, have lost its braces to sd-dynamic-prompts (stripped), or have its parentheses escaped as \( \) for
     // Forge's emphasis, the way Forge's own JSON Builder writes it
     function mossParts(prompt) {
-        const {text, tags} = splitTags(prompt);
-        const parts = (layout, end, stripped) => ({layout, stripped, tags,
+        const found = findMoss(splitOuterTags(prompt));
+        return found.layout ? found : {layout: null, stripped: false, tags: splitTags(prompt).tags, rest: ""};
+    }
+
+    function findMoss({text, tags}) {
+        // a tag repeated after the layout, or already in one of its captions, is there once
+        const outer = tags.filter((t, i) => tags.indexOf(t) === i);
+        const parts = (layout, end, stripped) => ({layout, stripped,
+            tags: layout ? outer.filter((t) => !text.slice(0, end).includes(t)) : outer,
             rest: layout ? text.slice(end).replace(/^[\s,]+|[\s,]+$/g, "").replace(/\s*,[\s,]*/g, ", ") : ""});
         if (text.startsWith("{")) {
             const end = objectEnd(text);
@@ -396,8 +431,12 @@
     }
 
     // the layout as the prompt holds it, then the words that came after it and Forge's tags
+    // A tag a box's caption already holds is not written again after it: Forge would load that LoRA once more
     function joinMoss(json, parts) {
-        return [json, parts.rest, parts.tags.join(" ")].filter(Boolean).join(" ");
+        const inside = (t) => json.includes(t);
+        const rest = String(parts.rest || "").replace(NETWORK_TAG, (t) => (inside(t) ? "" : t)).replace(/[ 	]{2,}/g, " ").trim();
+        const tags = parts.tags.filter((t, i) => !inside(t) && parts.tags.indexOf(t) === i && !rest.includes(t));
+        return [json, rest, tags.join(" ")].filter(Boolean).join(" ");
     }
 
     // the scene caption: the summary's when the prompt already is a layout, else the prompt itself

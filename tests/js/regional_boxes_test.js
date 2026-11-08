@@ -257,6 +257,21 @@ const tests = {
         assert.equal(R.writeMoss(twice, [], 1024, 1024, {}), "A snowy field. <lora:style:0.5> <lora:moss_sft_8step_dmd:1>");
     },
 
+    "MOSS: a LoRA in a box's caption stays in it, once, however many Writes"() {
+        const box = [{label: "character", desc: "a fox <lora:fox:0.8>", tgt: [0, 0, 500, 500]}];
+        let prompt = "A snowy field. <lora:dmd:1>";
+        for (let n = 0; n < 3; n++) prompt = R.writeMoss(prompt, box, 1024, 1024, {});
+        assert.equal(prompt.split("<lora:fox:0.8>").length, 2, prompt);
+        assert.ok(prompt.endsWith("} <lora:dmd:1>"), prompt);
+        assert.equal(R.mossExtra(prompt), "<lora:dmd:1>");
+        assert.equal(R.readMoss(prompt, 1024, 1024).elements[0].desc, "a fox <lora:fox:0.8>");
+        // a prompt the old Write left with copies after the layout, or an Extra that holds the box's tag, comes back clean
+        const healed = R.writeMoss(`${prompt} <lora:fox:0.8> <lora:fox:0.8> <lora:dmd:1>`, box, 1024, 1024, {});
+        assert.equal(healed, prompt);
+        const extra = R.writeMoss(prompt, box, 1024, 1024, {extra: "venus <lora:fox:0.8> <lora:dmd:1>"});
+        assert.ok(extra.endsWith("} venus <lora:dmd:1>"), extra);
+    },
+
     "MOSS: a new size moves the panel's boxes, there and back without drift"() {
         const els = [{label: "text", desc: "Title.", text: "WINTER FOX", tgt: [80, 80, 200, 920]},
             {label: "object", desc: "A fox.", tgt: [280, 120, 840, 880]}];
