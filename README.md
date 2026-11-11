@@ -4,7 +4,7 @@
 
 [![Forge Neo](https://img.shields.io/badge/Forge-Neo-blue)](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)
 [![Gradio](https://img.shields.io/badge/Gradio-4.40.0-orange)](https://gradio.app/)
-[![Version](https://img.shields.io/badge/Version-0.2.6-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
+[![Version](https://img.shields.io/badge/Version-0.2.7-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
 
 > **Extension for [Stable Diffusion WebUI Forge - Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)**
@@ -32,12 +32,17 @@ Draw boxes with the mouse, or a finger on a touch screen, to tell **FLUX 3 Image
 
 ## 🆕 What's New
 
+### v0.2.7 - Additional Prompt and Fixes
+
+- MOSS-Image's **Extra** field is now **Additional prompt**: it takes LoRA tags, trigger words or any other words, after the layout
+- A LoRA written in a box's description is no longer copied after the layout again on every **Write to prompt**; a prompt left with copies comes back clean on the next one
+- Marks keep one box per color: the panel draws no 9th box, and a box that shares a color with another (from another format, or read from a prompt) is left out of the notes, with a warning
+
 ### v0.2.6 - Touch Screens
 
 - **Draw, move and resize boxes with a finger** - on a phone, a tablet or a touch screen, the frame works as it does with the mouse; a drag on it no longer scrolls or zooms the page (thanks to [1243a-alt](https://github.com/1243a-alt))
 - A touch the system takes away in the middle of a drag, such as a gesture or a notification, puts the box back where it was instead of leaving it stuck to the finger
 - A second finger on the frame is ignored while the first one draws or moves a box
-- MOSS-Image's **Extra** field is now **Additional prompt**: it takes LoRA tags, trigger words or any other words, after the layout
 
 ### v0.2.5 - Styles, Box Tags, Hide the Boxes and Autocomplete
 
