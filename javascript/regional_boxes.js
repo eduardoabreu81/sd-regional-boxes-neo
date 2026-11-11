@@ -223,6 +223,18 @@
         return !!el.tgt && !!String(el.desc || "").trim();
     }
 
+    // the boxes drawn as marks: the described ones, one per color. The palette has 8 colors: a box sharing one with an
+    // earlier box (more than 8, from another format or read from a prompt) is left out, or "Inside the red box" would
+    // name two boxes
+    function marksOf(elements) {
+        const seen = new Set();
+        return elements.filter((e) => {
+            if (!isMarked(e) || seen.has(colorName(e))) return false;
+            seen.add(colorName(e));
+            return true;
+        });
+    }
+
     function joinNames(names) {
         if (names.length < 2) return names.join("");
         return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
@@ -230,7 +242,7 @@
 
     // "Inside the red box: add a beanie. ... Remove the red and blue box outlines from the image. Keep ..."
     function buildNotes(elements) {
-        const marked = elements.filter(isMarked);
+        const marked = marksOf(elements);
         if (!marked.length) return "";
         const notes = marked.map((e) => `Inside the ${colorName(e)} box: ${String(e.desc).trim().replace(/[.\s]+$/, "")}.`);
         const names = [...new Set(marked.map(colorName))];
@@ -247,7 +259,7 @@
         return JSON.stringify({
             format: FORMATS.marks,
             draw: !!draw,
-            boxes: elements.filter(isMarked).map((e) => ({color: colorName(e), bbox: normBox(e.tgt)})),
+            boxes: marksOf(elements).map((e) => ({color: colorName(e), bbox: normBox(e.tgt)})),
         });
     }
 
@@ -564,7 +576,7 @@
     }
 
     const api = {KINDS, FORMATS, PALETTE, buildLayout, writeLayout, readLayout, findLayoutSpan, elementJson, isComplete,
-        buildNotes, writeNotes, marksPayload, MOSS_LABELS, MOSS_CANVASES, mossBox, gridBox, isMossComplete, mossTag, parseMoss,
+        buildNotes, writeNotes, marksPayload, marksOf, MOSS_LABELS, MOSS_CANVASES, mossBox, gridBox, isMossComplete, mossTag, parseMoss,
         mossParts, mossExtra, layoutStripped, mossCaption, parseMeta, writeMoss, readMoss, mossOutOfBounds, rescaleMoss, moveBox, resizeBox, centerBox, resizeByTarget,
         resolveFormat};
     if (typeof module !== "undefined" && module.exports) {
@@ -718,10 +730,22 @@
             if (ta && (format() === FORMATS.coords || format() === FORMATS.moss) && layoutStripped(ta.value)) {
                 lines.push("⚠ The layout in the prompt lost its { }: click Read from prompt, then Write to prompt, to put them back.");
             }
+            if (format() === FORMATS.marks) lines.push(marksWarning());
             lines.push(mossWarning());
             const text = lines.filter(Boolean).join("\n");
             warning.textContent = text;
             warning.style.display = text ? "" : "none";
+        }
+
+        // marks have one color per box, 8 in all: no 9th box is drawn, and a box sharing a color with an earlier one
+        // (drawn in another format, or read from a prompt) is left out of the notes and the picture
+        function marksWarning() {
+            const shared = state.elements.filter((e, i) => state.elements.findIndex((o) => colorName(o) === colorName(e)) < i).length;
+            if (shared) {
+                return `⚠ Marks have ${PALETTE.length} colors, one per box: ${shared === 1 ? "1 box shares its color" : `${shared} boxes share their color`} `
+                    + `with an earlier one and ${shared === 1 ? "is" : "are"} left out of the prompt and the picture. Delete ${shared === 1 ? "it" : "them"}.`;
+            }
+            return state.elements.length >= PALETTE.length ? `All ${PALETTE.length} colors are in use: delete a box to draw another.` : "";
         }
 
         // MOSS boxes are pixels of the Width x Height they were written at: say so when the size has changed since
@@ -872,10 +896,10 @@
                 }
                 if (marks) {
                     // typing updates the state in place: rebuilding the list would drop the focus and the next click
-                    const row = el("div", {class: `regional-boxes-row${i === state.selected ? " selected" : ""}${isMarked(e) ? "" : " incomplete"}`},
+                    const row = el("div", {class: `regional-boxes-row${i === state.selected ? " selected" : ""}${marksOf(state.elements).includes(e) ? "" : " incomplete"}`},
                         swatch, el("span", {class: "regional-boxes-color"}, colorName(e)),
                         suggesting(el("input", {type: "text", class: "regional-boxes-desc regional-boxes-ac", value: e.desc, placeholder: "What to do inside the box: add a red beanie, change the shirt to denim, remove it...",
-                            oninput: (ev) => { e.desc = ev.target.value; row.classList.toggle("incomplete", !isMarked(e)); syncData(); }})),
+                            oninput: (ev) => { e.desc = ev.target.value; row.classList.toggle("incomplete", !marksOf(state.elements).includes(e)); syncData(); }})),
                         ...centerButtons(e),
                         el("button", {class: "secondary gradio-button", title: "Draw the box again", onclick: () => arm(i, "tgt")}, "Redraw"),
                         deleteButton);
@@ -1175,6 +1199,8 @@
                 // an element from a reference still needs where it goes, unless it is removed
                 const next = state.armed.which === "src" && armed.kind === KINDS.ref && !armed.tgt ? "tgt" : null;
                 state.armed = next ? {i: state.armed.i, which: next} : null;
+            } else if (format() === FORMATS.marks && state.elements.length >= PALETTE.length) {
+                // no color left for a new box: the warning says to delete one first
             } else {
                 state.counter += 1;
                 state.elements.push({id: `obj_${state.counter}`, desc: "", kind: tab === "img2img" ? KINDS.add : KINDS.place,

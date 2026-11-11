@@ -114,6 +114,21 @@ const tests = {
         assert.equal(JSON.parse(R.marksPayload([], false)).draw, false);
     },
 
+    "a box sharing its color with an earlier one is left out of the notes and the payload"() {
+        // 9 described boxes: the 9th wraps around to red, as nextColor and readLayout give it
+        const boxes = Array.from({length: 9}, (_, i) => ({desc: `thing ${i + 1}`, tgt: [1, 1, 9, 9], color: i}));
+        assert.equal(R.marksOf(boxes).length, 8);
+        assert.equal(R.marksOf(boxes).includes(boxes[8]), false);
+        const notes = R.buildNotes(boxes);
+        assert.equal((notes.match(/Inside the red box/g) || []).length, 1);
+        assert.equal(notes.includes("thing 9"), false);
+        const payload = JSON.parse(R.marksPayload(boxes, true));
+        assert.deepEqual(payload.boxes.map((b) => b.color), R.PALETTE.map(([n]) => n));
+        // an earlier box without a note does not take its color from a later one that has one
+        const later = [{desc: "", tgt: [1, 1, 9, 9], color: 0}, {desc: "add a cap", tgt: [1, 1, 9, 9], color: 8}];
+        assert.deepEqual(R.marksOf(later), [later[1]]);
+    },
+
     "palette names match the Python side's order"() {
         assert.deepEqual(R.PALETTE.map(([n]) => n), ["red", "blue", "green", "yellow", "magenta", "orange", "cyan", "purple"]);
     },
