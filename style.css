@@ -247,7 +247,7 @@
     font-size: 0.9em;
 }
 
-/* MOSS-Image's Scene (the layout's caption) and Extra (what follows the layout) */
+/* MOSS-Image's Scene (the layout's caption) and Additional prompt (what follows the layout) */
 .regional-boxes-scene {
     display: flex;
     flex-wrap: wrap;

@@ -461,7 +461,7 @@
         return String(text || "").split(",").map((s) => s.trim()).filter(Boolean);
     }
 
-    // what follows the layout in the prompt: the words after it, then Forge's tags (the panel's Extra)
+    // what follows the layout in the prompt: the words after it, then Forge's tags (the panel's Additional prompt)
     function mossExtra(prompt) {
         const parts = mossParts(prompt);
         return [parts.rest, parts.tags.join(" ")].filter(Boolean).join(" ");
@@ -626,7 +626,7 @@
         // armed: {i, which} for the next drag; color: palette index, kept for life so a note's color never changes
         // written: the [Width, Height] the MOSS layout in the prompt was written or read at
         // alert: why the last Write to prompt did nothing, shown until the prompt changes
-        // caption, extra: the Scene and Extra fields, the layout's caption and what follows the layout; edited: which of
+        // caption, extra: the Scene and Additional prompt fields, the layout's caption and what follows the layout; edited: which of
         // them were typed into since the last Write or Read (the others follow the prompt)
         // last: txt2img shows its last picture behind the boxes; hidden: the boxes are hidden, to see the picture whole
         const state = {elements: [], selected: -1, armed: null, counter: 0, format: FORMATS.auto, draw: true,
@@ -658,11 +658,11 @@
             placeholder: "The whole picture in a sentence or two: who is there, doing what, where, in what light...",
             title: "The scene, the layout's caption (summary.caption)",
             oninput: (ev) => { state.caption = ev.target.value; state.edited.caption = true; state.alert = ""; checkSize(); }});
-        const extraInput = el("input", {type: "text", class: "regional-boxes-extra regional-boxes-ac", placeholder: "<lora:...> trigger words",
-            title: "Written after the layout, outside it: LoRA tags and their trigger words",
+        const extraInput = el("input", {type: "text", class: "regional-boxes-extra regional-boxes-ac", placeholder: "<lora:...>, trigger words, anything else",
+            title: "Written after the layout, outside it: LoRA tags, trigger words or any other words",
             oninput: (ev) => { state.extra = ev.target.value; state.edited.extra = true; }});
         const sceneRow = el("div", {class: "regional-boxes-scene"},
-            el("label", {}, "Scene", suggesting(sceneInput)), el("label", {}, "Extra", suggesting(extraInput)));
+            el("label", {}, "Scene", suggesting(sceneInput)), el("label", {}, "Additional prompt", suggesting(extraInput)));
 
         const frame = el("div", {class: "regional-boxes-frame"});
         const background = el("img", {class: "regional-boxes-bg", draggable: "false", alt: ""});
@@ -837,7 +837,7 @@
                 hint.textContent = "Marks are drawn on an input picture: use them in img2img. For a new picture, pick a model that reads coordinates (FLUX 3).";
             } else if (!armed && fmt === FORMATS.moss) {
                 hint.textContent = "Describe the whole picture in Scene (or as the prompt), then drag on the frame to place each thing or text. "
-                    + "Write to prompt turns it all into a MOSS-Image layout for the current Width and Height, with Extra after it.";
+                    + "Write to prompt turns it all into a MOSS-Image layout for the current Width and Height, with the Additional prompt after it.";
             } else if (!armed && fmt === FORMATS.marks) {
                 hint.textContent = "Drag over the input picture to draw a box, and say what to do inside it. Write to prompt adds one note per box.";
             } else if (!armed) {
@@ -1056,7 +1056,7 @@
                 }
                 state.alert = "";
                 const [w, h] = size();
-                // without a layout in the prompt (cleared, or a new scene typed there), Extra is what still remembers the
+                // without a layout in the prompt (cleared, or a new scene typed there), the Additional prompt is what still remembers the
                 // words and tags that followed the last one
                 const extra = state.edited.extra || !current ? state.extra : undefined;
                 setValue(ta, writeMoss(ta.value, state.elements, w, h, {meta: parseMeta(state.meta), canvas: state.canvas,
@@ -1069,7 +1069,7 @@
             syncData();
         }
 
-        // Scene and Extra from the layout in the prompt: all of it after a Write or Read (force), else only the field not
+        // Scene and the Additional prompt from the layout in the prompt: all of it after a Write or Read (force), else only the field not
         // typed into since, so a LoRA added from Forge's tab or a caption changed by hand shows up in the panel
         function syncFields(force) {
             const ta = prompt();

@@ -37,13 +37,14 @@ Draw boxes with the mouse, or a finger on a touch screen, to tell **FLUX 3 Image
 - **Draw, move and resize boxes with a finger** - on a phone, a tablet or a touch screen, the frame works as it does with the mouse; a drag on it no longer scrolls or zooms the page (thanks to [1243a-alt](https://github.com/1243a-alt))
 - A touch the system takes away in the middle of a drag, such as a gesture or a notification, puts the box back where it was instead of leaving it stuck to the finger
 - A second finger on the frame is ignored while the first one draws or moves a box
+- MOSS-Image's **Extra** field is now **Additional prompt**: it takes LoRA tags, trigger words or any other words, after the layout
 
 ### v0.2.5 - Styles, Box Tags, Hide the Boxes and Autocomplete
 
 - **Styles go into the layout's caption** - with a MOSS-Image layout as the prompt, the Styles you pick no longer land after the layout, outside it: their words are added to the scene caption, the way Forge Neo would apply them to a plain prompt, also a style with `{prompt}`
 - **Box tags say what each box holds** - with MOSS-Image, a box on the frame is tagged with its words or the start of its description, *1 WINTER FOX*, *2 a red fox sitting…*, instead of only *1 text*, *2 character*; only the panel shows it, the layout is the same
 - **Hide the boxes** - see the picture behind them whole, at full strength, and turn them back on to keep drawing
-- **Tag Autocomplete in the panel** - Scene, Extra and each box's description complete tags, LoRAs and wildcards as the prompt does, with [Tag Autocomplete](https://github.com/DominikDoom/a1111-sd-webui-tagcomplete) installed
+- **Tag Autocomplete in the panel** - Scene, Additional prompt and each box's description complete tags, LoRAs and wildcards as the prompt does, with [Tag Autocomplete](https://github.com/DominikDoom/a1111-sd-webui-tagcomplete) installed
 
 ### v0.2.4 - Scene and Extra
 
@@ -120,7 +121,7 @@ Draw boxes with the mouse, or a finger on a touch screen, to tell **FLUX 3 Image
 - **Write to prompt** turns it all into [MOSS-Image's layout](https://github.com/OpenMOSS/MOSS-Image/blob/main/USERGUIDE.md#layout-prompts-experimental), the way OpenMOSS's own tools write it; Scene becomes the layout's caption
 - Under each box, its edges in pixels from the center of the picture, as the layout uses them - type a number to set an edge exactly
 - **Read from prompt** loads a layout back, yours or one you pasted, to adjust it
-- **Extra** holds LoRA tags such as `<lora:name:1>` and their trigger words: they go after the layout, where Forge Neo still finds them, and tags already in the prompt are kept
+- **Additional prompt** holds what goes outside the layout - LoRA tags such as `<lora:name:1>`, their trigger words, any other words: they go after the layout, where Forge Neo still finds them, and tags already in the prompt are kept
 - **Styles** picked under Generate go into the scene caption when you generate, not after the layout, also with sd-dynamic-prompts on; their negative part goes to the negative prompt as usual, and the infotext names them under *Regional boxes styles*
 - Change the size and the layout follows: the boxes in the prompt are moved to fit, and the panel says so
 - In img2img, draw over the input picture and describe the new version: things keep their place, while captions and words can change
