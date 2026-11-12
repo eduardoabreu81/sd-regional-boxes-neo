@@ -7,6 +7,10 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 const R = require(path.join(__dirname, "..", "..", "javascript", "regional_boxes.js"));
 
+const PAN2_DOG = '{"video_style":"realistic handheld documentary footage, natural colors, shallow depth of field","lighting":"soft overcast daylight","perspective_view":"eye-level medium shot","subjects_lifecycle":[{"subject_id":"<|Subject1|>","display_name":"golden retriever","subject_attribute":"an adult golden retriever with a red collar"}],"init_frame_visual_description":"A golden retriever sits on green grass in a park, looking at the camera, trees in the background.","events":[{"event_index":0,"time_range_sec":"0 to 5","event_description":"The golden retriever stands up and walks toward the camera, wagging its tail.","camera_motion":[{"time_range_sec":"0 to 5","camera_motion":["static"]}],"contained_actions":[{"time_range_sec":"0 to 5","action":"<|Subject1|> stands up and walks forward"}]}],"quality":{"video_quality":"sharp natural detail","text_logos_overlays":null,"artifacts":null}}';
+const PAN2_POTTER = '{"video_style":"realistic handheld footage, one continuous shot","lighting":"soft overcast daylight","perspective_view":"eye-level medium shot","subjects_lifecycle":[{"subject_id":"<|Subject1|>","display_name":"potter","subject_attribute":"a woman in a clay-stained apron"}],"init_frame_visual_description":"A potter sits at a spinning wheel with a wet lump of clay, shelves of bowls behind her.","events":[{"event_index":0,"time_range_sec":"0 to 5","event_description":"She presses her thumbs into the clay and draws it up into a tall cylinder.","camera_motion":[{"time_range_sec":"0 to 5","camera_motion":["static"]}],"contained_actions":[{"time_range_sec":"0 to 5","action":"<|Subject1|> shapes the clay into a cylinder"}]}],"quality":{"video_quality":"sharp natural detail","text_logos_overlays":null,"artifacts":null}}';
+const PAN2_TWO_EVENTS = '{"video_style":"one continuous shot","lighting":"noon sun","perspective_view":"wide shot","subjects_lifecycle":[{"subject_id":"<|Subject1|>","display_name":"cyclist","subject_attribute":"a man in a yellow jersey"}],"init_frame_visual_description":"A cyclist waits at a crossing.","events":[{"event_index":0,"time_range_sec":"0 to 4","event_description":"He looks both ways.","camera_motion":[{"time_range_sec":"0 to 4","camera_motion":["static"]}],"contained_actions":[{"time_range_sec":"0 to 4","action":"<|Subject1|> looks left and right"}]},{"event_index":1,"time_range_sec":"4 to 10","event_description":"He rides off down the road.","camera_motion":[{"time_range_sec":"4 to 6","camera_motion":["static"]},{"time_range_sec":"6 to 10","camera_motion":["pan_right"]}],"contained_actions":[{"time_range_sec":"5 to 9","action":"<|Subject1|> pedals away"}]}],"quality":{"video_quality":"sharp","text_logos_overlays":null,"artifacts":null}}';
+
 const tests = {
     // ---- coordinates (FLUX 3) ----
     "layout element in Black Forest Labs' style"() {
@@ -329,6 +333,71 @@ const tests = {
         assert.deepEqual(R.resizeBox([100, 100, 300, 400], "se", [105, 600]), [100, 100, 300, 400]);
     },
 
+    "a box resized by a side moves only that side"() {
+        assert.deepEqual(R.resizeBox([100, 100, 300, 500], "e", [0, 700]), [100, 100, 300, 700]);
+        assert.deepEqual(R.resizeBox([100, 100, 300, 500], "n", [50, 999]), [50, 100, 300, 500]);
+        assert.deepEqual(R.resizeBox([100, 100, 300, 500], "w", [900, 600]), [100, 500, 300, 600]);
+        assert.deepEqual(R.resizeBox([100, 100, 300, 500], "s", [0, 0]), [0, 100, 100, 500]);
+    },
+
+    "Shift keeps the box's shape, and the box shrinks to stay in the picture"() {
+        // a corner: from the opposite corner, the larger of the two moves wins
+        assert.deepEqual(R.resizeBox([100, 100, 300, 500], "se", [500, 600], true), [100, 100, 500, 900]);
+        assert.deepEqual(R.resizeBox([100, 100, 300, 500], "nw", [0, 0], true), [50, 0, 300, 500]);
+        // past the edge: as large as fits, still 1:2
+        assert.deepEqual(R.resizeBox([100, 100, 300, 500], "se", [1000, 1000], true), [100, 100, 550, 1000]);
+        // a side: from the opposite side, the other way around the middle
+        assert.deepEqual(R.resizeBox([100, 100, 300, 500], "e", [0, 700], true), [50, 100, 350, 700]);
+        assert.deepEqual(R.resizeBox([100, 100, 300, 500], "s", [500, 0], true), [100, 0, 400, 600]);
+        // dragged past the other side: flipped, same shape
+        assert.deepEqual(R.resizeBox([100, 100, 300, 500], "se", [50, 50], true), [50, 0, 100, 100]);
+        // too thin to see: the box keeps its shape
+        assert.deepEqual(R.resizeBox([100, 100, 300, 500], "se", [102, 103], true), [100, 100, 300, 500]);
+    },
+
+    "undo and redo go back and forth through the changes"() {
+        const h = R.createHistory(3);
+        assert.equal(h.canUndo, false);
+        h.remember("a");
+        h.remember("b");
+        assert.equal(h.undo("c"), "b");
+        assert.equal(h.canRedo, true);
+        assert.equal(h.redo("b"), "c");
+        assert.equal(h.undo("c"), "b");
+        assert.equal(h.undo("b"), "a");
+        assert.equal(h.undo("a"), null);
+        // a new change drops what could be redone
+        h.remember("a");
+        assert.equal(h.canRedo, false);
+        // the oldest steps go past the limit
+        h.remember("x");
+        h.remember("y");
+        h.remember("z");
+        assert.deepEqual([h.undo("now"), h.undo("z"), h.undo("y"), h.undo("x")], ["z", "y", "x", null]);
+    },
+
+    "changes with the same key are one step"() {
+        const h = R.createHistory();
+        const field = {};
+        h.remember("before typing", field);
+        h.remember("after a letter", field);
+        h.remember("nudge 1", "nudge:0:tgt");
+        h.remember("nudge 2", "nudge:0:tgt");
+        assert.equal(h.undo("now"), "nudge 1");
+        assert.equal(h.undo("nudge 1"), "before typing");
+        // after an undo, the same key starts a step again
+        h.remember("typing again", field);
+        assert.equal(h.canUndo, true);
+        assert.equal(h.undo("now"), "typing again");
+    },
+
+    "composition guides cross the frame at the right shares"() {
+        assert.deepEqual(R.GUIDES.thirds.map((v) => Math.round(v * 300)), [100, 200]);
+        assert.deepEqual(R.GUIDES.center, [0.5]);
+        assert.deepEqual(R.GUIDES.golden, [0.382, 0.618]);
+        assert.deepEqual(R.GUIDES.off, []);
+    },
+
     "a box centered across or down the picture, in the layout's pixels"() {
         // the box of the screenshot: [-380, -447, -195, 393] on 1024x1024
         const box = R.gridBox([-380, -447, -195, 393], 1024, 1024);
@@ -370,6 +439,95 @@ const tests = {
         assert.deepEqual(R.parseMeta(" poster,, flat illustration ,"), ["poster", "flat illustration"]);
     },
 
+    // ---- world-state caption (PAN 2) ----
+    "PAN 2: a released caption reads and writes back byte for byte"() {
+        // the example caption of speedyrulz/PAN2-ComfyUI's T2V workflow, and the one in pan2-forge-neo's README
+        for (const caption of [PAN2_DOG, PAN2_POTTER]) {
+            const model = R.readPan2(caption);
+            assert.ok(model);
+            assert.equal(R.buildPan2(model), caption);
+        }
+    },
+
+    "PAN 2: keys in the prompt guide's order, IDs by order, times with one decimal"() {
+        const model = R.newPan2(100);
+        Object.assign(model, {style: "handheld, one continuous shot", lighting: "dusk", view: "medium shot", firstFrame: "A dog on grass.",
+            quality: "sharp", subjects: [{name: "dog", attribute: "a corgi"}, {name: "ball", attribute: "a red ball"}]});
+        model.events = [{end: 35, desc: "The dog runs.", camera: [{end: 20, tags: ["static"]}, {end: 35, tags: ["pan_left", "zoom_in"]}],
+            actions: [{subject: 0, start: 0, end: 35, text: "runs"}]},
+        {end: 100, desc: "It catches the ball.", camera: [{end: 100, tags: ["track_right"]}], actions: [{subject: 1, start: 50, end: 72, text: "<|Subject2|> bounces"}]}];
+        const o = JSON.parse(R.buildPan2(model));
+        assert.deepEqual(Object.keys(o), ["video_style", "lighting", "perspective_view", "subjects_lifecycle", "init_frame_visual_description", "events", "quality"]);
+        assert.deepEqual(Object.keys(o.events[0]), ["event_index", "time_range_sec", "event_description", "camera_motion", "contained_actions"]);
+        assert.deepEqual(o.subjects_lifecycle.map((s) => s.subject_id), ["<|Subject1|>", "<|Subject2|>"]);
+        assert.deepEqual(o.events.map((e) => e.time_range_sec), ["0 to 3.5", "3.5 to 10"]);
+        assert.deepEqual(o.events[0].camera_motion.map((c) => c.time_range_sec), ["0 to 2", "2 to 3.5"]);
+        assert.equal(o.events[0].contained_actions[0].action, "<|Subject1|> runs");
+        assert.equal(o.events[1].contained_actions[0].action, "<|Subject2|> bounces");
+        assert.equal(o.events[1].contained_actions[0].time_range_sec, "5 to 7.2");
+        assert.deepEqual(o.quality, {video_quality: "sharp", text_logos_overlays: null, artifacts: null});
+        assert.deepEqual(R.checkPan2(model), []);
+    },
+
+    "PAN 2: the clip length comes from Frames at 24 fps"() {
+        assert.equal(R.pan2Duration(241), 100);
+        assert.equal(R.pan2Duration(121), 50);
+        assert.equal(R.pan2Duration(361), 150);
+        assert.equal(R.pan2Duration(97), 40);
+    },
+
+    "PAN 2: a new length keeps every time's share of the clip"() {
+        const model = R.readPan2(PAN2_TWO_EVENTS);
+        const fitted = R.fitPan2(model, 50);
+        const o = JSON.parse(R.buildPan2(fitted));
+        assert.deepEqual(o.events.map((e) => e.time_range_sec), ["0 to 2", "2 to 5"]);
+        assert.deepEqual(o.events[1].camera_motion.map((c) => c.time_range_sec), ["2 to 3", "3 to 5"]);
+        assert.equal(o.events[1].contained_actions[0].time_range_sec, "2.5 to 4.5");
+        // and back: the same times as before
+        assert.equal(R.buildPan2(R.fitPan2(fitted, 100)), R.buildPan2(model));
+    },
+
+    "PAN 2: a very short clip still gives every event and camera move a tenth"() {
+        const fitted = R.fitPan2(R.readPan2(PAN2_TWO_EVENTS), 2);
+        const o = JSON.parse(R.buildPan2(fitted));
+        assert.deepEqual(o.events.map((e) => e.time_range_sec), ["0 to 0.1", "0.1 to 0.2"]);
+        assert.deepEqual(R.checkPan2(fitted).filter((p) => /inside/.test(p)), []);
+    },
+
+    "PAN 2: what the prompt guide asks is checked"() {
+        const model = R.readPan2(PAN2_TWO_EVENTS);
+        model.firstFrame = "<|Subject1|> sits on the grass.";
+        model.events[0].camera[0].tags = ["static", "pan_left"];
+        model.events[1].camera[0].tags = [];
+        model.events[1].actions[0].end = 120;
+        model.subjects[0].attribute = "";
+        model.events[0].desc = "word ".repeat(201);
+        const problems = R.checkPan2(model).join("\n");
+        for (const want of [/First frame names a subject/, /static and moving at once/, /camera 1 has no move/, /not inside its event/,
+            /<\|Subject1\|> needs a name/, /Event 1 has more than 200 words/]) {
+            assert.match(problems, want);
+        }
+    },
+
+    "PAN 2: Forge's tags stay after the caption, and a plain prompt is replaced"() {
+        const model = R.readPan2(PAN2_DOG);
+        const written = R.writePan2("<lora:pan2_motion:0.8> a dog runs", model);
+        assert.equal(written, `${PAN2_DOG} <lora:pan2_motion:0.8>`);
+        assert.equal(R.pan2Extra(written), "<lora:pan2_motion:0.8>");
+        const again = R.writePan2(written, model, {extra: "<lora:other:1>"});
+        assert.equal(again, `${PAN2_DOG} <lora:other:1> <lora:pan2_motion:0.8>`);
+        assert.equal(R.parsePan2("a dog runs"), null);
+        assert.equal(R.parsePan2('{"summary": {"caption": "x"}, "items": []}'), null);
+    },
+
+    "PAN 2: actions keep their subject when the IDs are not in order"() {
+        const caption = PAN2_DOG.replace(/<\|Subject1\|>/g, "<|Subject7|>");
+        const model = R.readPan2(caption);
+        assert.equal(model.events[0].actions[0].subject, 0);
+        assert.equal(model.events[0].actions[0].text, "stands up and walks forward");
+        assert.equal(R.buildPan2(model), PAN2_DOG);
+    },
+
     // ---- auto format ----
     "auto: coordinates for FLUX 3, marks for Qwen-Image 2.1, layout JSON for MOSS-Image, nothing for the others"() {
         for (const [preset, ckpt] of [["moss", "anything.safetensors"], ["sd", "MOSS\\moss_image_sft_int8_convrot.safetensors"],
@@ -389,6 +547,11 @@ const tests = {
             assert.equal(R.resolveFormat("auto", preset, ckpt), "none", ckpt);
         }
         assert.equal(R.resolveFormat("marks", "krea", ""), "marks");
+        for (const [preset, ckpt] of [["pan2", "anything.safetensors"], ["sd", "PAN2_nvfp4.safetensors"], ["wan", "PAN 2\\pan_2_int8.safetensors"]]) {
+            assert.equal(R.resolveFormat("auto", preset, ckpt), "pan2", ckpt);
+        }
+        assert.equal(R.resolveFormat("auto", "sd", "japan2_style.safetensors"), "none");
+        assert.equal(R.resolveFormat("pan2", "moss", ""), "pan2");
         assert.equal(R.resolveFormat("coords", "qwen21", ""), "coords");
     },
 };

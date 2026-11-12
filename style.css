@@ -103,7 +103,7 @@
     cursor: move;
 }
 
-/* the corners of the selected box resize it */
+/* the corners and sides of the selected box resize it */
 .regional-boxes-handle {
     position: absolute;
     width: 10px;
@@ -118,6 +118,30 @@
 .regional-boxes-handle.ne { top: -6px; right: -6px; cursor: nesw-resize; }
 .regional-boxes-handle.sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
 .regional-boxes-handle.se { bottom: -6px; right: -6px; cursor: nwse-resize; }
+.regional-boxes-handle.n { top: -6px; left: calc(50% - 5px); cursor: ns-resize; }
+.regional-boxes-handle.s { bottom: -6px; left: calc(50% - 5px); cursor: ns-resize; }
+.regional-boxes-handle.e { right: -6px; top: calc(50% - 5px); cursor: ew-resize; }
+.regional-boxes-handle.w { left: -6px; top: calc(50% - 5px); cursor: ew-resize; }
+
+/* composition guides: light lines with a dark edge, seen on the grid and on a picture alike */
+.regional-boxes-guides {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.regional-boxes-guide {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.7);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+
+.regional-boxes-guide.down { top: 0; bottom: 0; width: 1px; margin-left: -0.5px; }
+.regional-boxes-guide.across { left: 0; right: 0; height: 1px; margin-top: -0.5px; }
+
+.regional-boxes-frame.boxes-hidden .regional-boxes-guides {
+    display: none;
+}
 
 .regional-boxes-list {
     display: flex;
@@ -337,4 +361,255 @@
 /* the center buttons, as small as the ✕ */
 .regional-boxes-row button.regional-boxes-center {
     padding: 2px 6px;
+}
+
+/* ---- PAN 2: the description's fields, its subjects and the timeline, in place of the frame ---- */
+
+.regional-boxes-pan2 {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 0.9em;
+}
+
+.regional-boxes-pan2-input,
+.regional-boxes-pan2 select,
+.regional-boxes-pan2 input.regional-boxes-coord {
+    padding: 2px 6px;
+    border: 1px solid var(--border-color-primary, #888);
+    border-radius: 4px;
+    background: var(--input-background-fill, transparent);
+    color: inherit;
+    font: inherit;
+    min-width: 0;
+}
+
+.regional-boxes-pan2 textarea {
+    resize: vertical;
+}
+
+.regional-boxes-pan2 input.regional-boxes-coord {
+    width: calc(4ch + 10px);
+    padding: 1px 4px;
+    text-align: right;
+}
+
+.regional-boxes-pan2 button {
+    padding: 2px 8px;
+}
+
+.regional-boxes-pan2-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16em, 1fr));
+    gap: 6px 12px;
+}
+
+.regional-boxes-pan2-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.regional-boxes-pan2-field > span:first-child {
+    opacity: 0.8;
+}
+
+.regional-boxes-pan2-field.wide {
+    grid-column: 1 / -1;
+}
+
+.regional-boxes-pan2-field .regional-boxes-ac-wrap > input {
+    width: 100%;
+}
+
+.regional-boxes-pan2-count {
+    align-self: flex-end;
+    font-size: 0.85em;
+    opacity: 0.7;
+}
+
+/* img2img: the input picture next to its description */
+.regional-boxes-pan2-picture {
+    max-height: 72px;
+    max-width: 128px;
+    align-self: flex-start;
+    border-radius: 4px;
+    object-fit: contain;
+}
+
+.regional-boxes-pan2-section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.regional-boxes-pan2-heading,
+.regional-boxes-pan2-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.regional-boxes-pan2-heading > span {
+    opacity: 0.7;
+}
+
+.regional-boxes-pan2-subject,
+.regional-boxes-pan2-action,
+.regional-boxes-pan2-camera {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+.regional-boxes-pan2-subject input:not(.regional-boxes-pan2-grow) {
+    width: 10em;
+}
+
+.regional-boxes-pan2-grow {
+    flex: 1 1 14em;
+}
+
+.regional-boxes-pan2-action.selected {
+    outline: 1px solid var(--color-accent, #f97316);
+}
+
+.regional-boxes-pan2-range {
+    min-width: 6em;
+    opacity: 0.8;
+}
+
+/* the 16 camera moves PAN 2 knows, as toggles */
+.regional-boxes-pan2 button.regional-boxes-pan2-chip {
+    padding: 1px 6px;
+    border: 1px solid var(--border-color-primary, #888);
+    border-radius: 10px;
+    background: transparent;
+    color: inherit;
+    font-size: 0.9em;
+    cursor: pointer;
+    opacity: 0.65;
+}
+
+.regional-boxes-pan2 button.regional-boxes-pan2-chip.on {
+    background: var(--color-accent, #f97316);
+    border-color: var(--color-accent, #f97316);
+    color: #000;
+    opacity: 1;
+}
+
+.regional-boxes-pan2-event {
+    padding: 6px;
+    border: 1px solid var(--border-color-primary, #888);
+    border-radius: 4px;
+}
+
+/* the timeline: a column of lane names, then the lanes, all on the same time scale */
+.regional-boxes-pan2-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    user-select: none;
+    /* a drag on a touch screen moves a line or draws an action, instead of scrolling the page */
+    touch-action: none;
+}
+
+.regional-boxes-pan2-lane {
+    display: grid;
+    grid-template-columns: 7em 1fr;
+    gap: 6px;
+    align-items: stretch;
+}
+
+.regional-boxes-pan2-lane-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-left: 4px;
+    border-left: 4px solid transparent;
+    line-height: 24px;
+}
+
+.regional-boxes-pan2-ruler {
+    position: relative;
+    height: 16px;
+    font-size: 0.8em;
+    opacity: 0.7;
+}
+
+.regional-boxes-pan2-ruler span {
+    position: absolute;
+    transform: translateX(-50%);
+}
+
+.regional-boxes-pan2-ruler span:first-child {
+    transform: none;
+}
+
+.regional-boxes-pan2-track {
+    position: relative;
+    height: 24px;
+    border: 1px solid var(--border-color-primary, #888);
+    border-radius: 4px;
+    background: var(--background-fill-secondary, transparent);
+}
+
+.regional-boxes-pan2-track.subject {
+    cursor: crosshair;
+}
+
+.regional-boxes-pan2-seg {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    box-sizing: border-box;
+    overflow: hidden;
+    padding: 0 4px;
+    border-radius: 3px;
+    font-size: 0.85em;
+    line-height: 18px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    border: 1px solid var(--border-color-primary, #888);
+    background: var(--input-background-fill, #444);
+}
+
+.regional-boxes-pan2-seg.action {
+    color: #000;
+    opacity: 0.85;
+}
+
+.regional-boxes-pan2-seg.selected {
+    border: 2px solid var(--color-accent, #f97316);
+    opacity: 1;
+}
+
+.regional-boxes-pan2-seg span {
+    pointer-events: none;
+}
+
+/* the line between two events or camera moves, and the ends of the selected action: dragged to change the time */
+.regional-boxes-pan2-edge {
+    position: absolute;
+    top: -3px;
+    bottom: -3px;
+    width: 10px;
+    margin-left: -5px;
+    cursor: ew-resize;
+    z-index: 2;
+}
+
+.regional-boxes-pan2-edge::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 4px;
+    width: 2px;
+    background: var(--color-accent, #f97316);
 }
