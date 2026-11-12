@@ -4,7 +4,7 @@
 
 [![Forge Neo](https://img.shields.io/badge/Forge-Neo-blue)](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)
 [![Gradio](https://img.shields.io/badge/Gradio-4.40.0-orange)](https://gradio.app/)
-[![Version](https://img.shields.io/badge/Version-0.2.7-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
+[![Version](https://img.shields.io/badge/Version-0.3.0-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
 
 > **Extension for [Stable Diffusion WebUI Forge - Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)**
@@ -12,6 +12,8 @@
 </div>
 
 Draw boxes with the mouse, or a finger on a touch screen, to tell **FLUX 3 Image Klein**, **Qwen-Image 2.1** or **MOSS-Image** where things go - the panel hands them to each model in the format it was trained on: **coordinates in the prompt** for FLUX 3, **boxes drawn on the picture** for Qwen-Image 2.1, a **layout prompt** for MOSS-Image. No coordinates to type, no image editor needed.
+
+For the **PAN 2** video model, the panel becomes a **timeline of the clip**: lay out what happens, the camera moves and what each subject does, and it writes PAN 2's structured description for you.
 
 > [!Important]
 > This extension requires an up-to-date **Forge Neo** (the `neo` branch). It only writes the prompt and, for Qwen-style edits, draws the boxes on the input picture - nothing of Forge Neo is changed.
@@ -31,6 +33,15 @@ Draw boxes with the mouse, or a finger on a touch screen, to tell **FLUX 3 Image
 ---
 
 ## 🆕 What's New
+
+### v0.3.0 - PAN 2 Timeline, Undo and Shortcuts
+
+- **PAN 2 format** - a timeline of the clip instead of the frame: events, camera moves and each subject's actions, written as [PAN 2](https://huggingface.co/IFM/PAN2)'s structured description for the [PAN 2 extension](https://github.com/eduardoabreu81/pan2-forge-neo) (work in progress); **Auto** picks it with the **pan2** preset or a PAN 2 checkpoint
+- **Undo and Redo** for the boxes - ↶ and ↷, or Ctrl+Z and Ctrl+Y; a description typed in one go, or a box nudged several times, undoes as one step
+- **Side handles** on the selected box, and **Shift** keeps its shape while you resize it
+- **⧉ Duplicate** a box, or Ctrl+D - the copy lands a little below and to the right, with its own color
+- **Keys** - Delete removes the selected box, Esc lets it go, the arrow keys move it (Shift for bigger steps), and a double-click jumps to its description
+- **Guides** over the frame - rule of thirds, center or golden ratio, kept for the next time
 
 ### v0.2.7 - Additional Prompt and Fixes
 
@@ -135,10 +146,30 @@ Draw boxes with the mouse, or a finger on a touch screen, to tell **FLUX 3 Image
 <p align="center"><img src=".github/images/moss_txt2img.jpg" alt="The MOSS-Image poster made in txt2img: WINTER FOX, a red fox, FORGE NEO" width="300"> <img src=".github/images/moss_img2img.jpg" alt="The same poster in img2img with the same boxes: ARCTIC FOX and a white arctic fox" width="300"></p>
 <p align="center"><sub>txt2img, then the same boxes in img2img with a new title and an arctic fox - 8-step LoRA, RTX 2070</sub></p>
 
+### 🎬 Timeline of the Clip (PAN 2)
+
+- PAN 2 does not place things in the picture: it follows a scene through time. The frame gives way to a **timeline** as long as the clip - the **Frames** you set
+- Describe the look in **Video style**, **Lighting** and **Perspective**, and the opening picture in **First frame** (in img2img, the input picture)
+- Under **Subjects**, add the people and things that move, each with a name and how it looks - PAN 2 knows them by IDs such as `<|Subject1|>`
+- Split the clip into **events** and drag the lines between them; each event says what happens and has its **camera moves**, from PAN 2's own list (static, pan, tilt, track, dolly, zoom, roll, unstable)
+- Drag on a subject's lane to add what it does, and drag an action's edges to change when it starts and ends
+- **Write to prompt** turns it all into PAN 2's JSON description; **Read from prompt** loads one back, and fits its times to the clip if its length was different
+- Before you generate, the panel lists what PAN 2's prompt guide asks that the description does not do yet - an empty field, an action outside its event, a description too long
+- **Additional prompt** holds what goes outside the description, such as LoRA tags
+- Needs the [PAN 2 extension](https://github.com/eduardoabreu81/pan2-forge-neo), which uses the description as written even with sd-dynamic-prompts on
+
+### ✏️ Editing the Boxes
+
+- **↶ Undo** and **↷ Redo** (Ctrl+Z, Ctrl+Y) for drawing, moving, resizing, deleting and the fields of each box
+- Resize the selected box by its corners or sides; hold **Shift** to keep its shape
+- **⧉** duplicates a box (Ctrl+D); Delete removes it, Esc lets it go, the arrow keys move it one step (ten with Shift)
+- Double-click a box to jump to its description
+- **Guides** draw the thirds, the center or the golden ratio over the frame
+
 ### 🛡️ Safe by Design
 
 - Changes no Forge Neo file and adds no generation setting of its own
-- Works with **sd-dynamic-prompts** installed, and warns while it is on, since it breaks layouts
+- Works with **sd-dynamic-prompts** installed, and warns while it is on with FLUX 3 and MOSS-Image, since it breaks their layouts
 - The infotext records which boxes were drawn
 
 ---
@@ -147,13 +178,14 @@ Draw boxes with the mouse, or a finger on a touch screen, to tell **FLUX 3 Image
 
 <p align="center"><img src=".github/images/models.jpg" alt="Top: the teapot and vase layout as coordinates, on FLUX 3 and on Qwen-Image 2.1. Bottom: the cactus box drawn on the picture, on FLUX 3 and on Qwen-Image 2.1" width="560"></p>
 
-Regional Boxes works with three models, each in the format it was trained on. Tested on an 8 GB RTX 2070:
+Regional Boxes works with four models, each in the format it was trained on. Tested on an 8 GB RTX 2070:
 
 | Model | Format | |
 | :--- | :--- | :--- |
 | **FLUX 3 Image Klein** | Coordinates in the prompt | ✅ top left: things land in their boxes |
 | **Qwen-Image 2.1** | Marks on the picture | ✅ bottom right: the cactus in the box, the outline gone |
 | **MOSS-Image** | Layout prompt | ✅ the poster above: title, fox and subtitle in their boxes |
+| **PAN 2** | Timeline of the clip | 🚧 work in progress, like the [PAN 2 extension](https://github.com/eduardoabreu81/pan2-forge-neo) |
 
 FLUX 3 and Qwen-Image 2.1 do not follow each other's format (top right, bottom left), so **Auto** picks the format by the loaded model. With any other model the panel says so and writes nothing. For SD 1.5, SDXL, Anima, Z-Image and Krea 2, region tools that steer the model's attention work instead: [Forge Couple](https://github.com/Haoming02/sd-forge-couple) and [Regional Prompter](https://github.com/hako-mikan/sd-webui-regional-prompter).
 
@@ -175,6 +207,8 @@ FLUX 3 and Qwen-Image 2.1 do not follow each other's format (top right, bottom l
 3. Describe each box - what it is (coordinates, layout) or what to do inside it (marks)
 4. Click **Write to prompt**, then **Generate**
 
+With PAN 2, set **Frames** first, then fill in the fields and the timeline instead of drawing boxes.
+
 For edits, use img2img with **Denoising strength** 1 and the model's reference option on (**[Qwen 2.1] Enable Reference**, **[Klein] Enable Reference**).
 
 ---
@@ -183,7 +217,8 @@ For edits, use img2img with **Denoising strength** 1 and the model's reference o
 
 - Boxes guide placement and size; they are not a mask, and the model may draw a little past them
 - Marks work best with a box drawn a bit larger than the thing to change
-- Drag a box by its name tag to move it, and by the corners of the selected box to resize it; dragging anywhere else draws a new box, even inside another one
+- Drag a box by its name tag to move it, and by the corners or sides of the selected box to resize it (Shift keeps its shape); dragging anywhere else draws a new box, even inside another one
+- Made a mistake? Ctrl+Z undoes it, Ctrl+Y brings it back. The keys work after a click on the panel, and not while you type in a field
 - **⇔** and **⇕** center a box across or down the picture, keeping its size
 - **Hide the boxes** shows the picture behind them whole; no box can be drawn until you turn them back on
 - With MOSS-Image, each box's tag on the frame shows its words or the start of its description, so you can tell the boxes apart over the last picture
@@ -204,6 +239,8 @@ For edits, use img2img with **Denoising strength** 1 and the model's reference o
 - **[FLUX 3 Image Klein](https://huggingface.co/black-forest-labs/flux-3-image-klein)** by Black Forest Labs - the bounding box format, and the mug photo of the examples
 - **[Qwen-Image 2.1](https://huggingface.co/Qwen)** by the Qwen team - edits guided by marks on the picture
 - **[MOSS-Image](https://github.com/OpenMOSS/MOSS-Image)** by OpenMOSS - the layout prompt format
+- **[PAN 2](https://huggingface.co/IFM/PAN2)** by the Institute of Foundation Models (IFM), MBZUAI - the structured description and its prompt guide
+- **[BBox Studio](https://github.com/Haoming02/sd-webui-forge-classic/discussions/1625)** - the ideas for undo, side handles, duplicate, keys and guides
 
 ---
 
