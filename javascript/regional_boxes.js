@@ -2285,8 +2285,13 @@
             if (node) node.addEventListener("change", () => setTimeout(refreshFormat, 100));
         }
         // Gradio 4's dropdowns change their value without a change event, so a new preset or checkpoint went unnoticed
-        // until a click in the panel: while the panel is open, it checks the loaded model once a second
-        setInterval(() => { if (host.offsetParent) refreshFormat(); }, 1000);
+        // until a click in the panel, and a preset sets Frames without an input event, so a PAN 2 timeline kept the
+        // length of the preset before it (0.1 s after h3): while the panel is open, it checks both once a second
+        setInterval(() => {
+            if (!host.offsetParent) return;
+            refreshFormat();
+            if (format() === FORMATS.pan2) pan2.fit();
+        }, 1000);
         host.closest(".gradio-accordion, .block")?.addEventListener("click", () => setTimeout(() => { fitFrame(); refreshFormat(); }, 50));
         fitFrame();
         render();
