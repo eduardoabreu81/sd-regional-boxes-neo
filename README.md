@@ -4,7 +4,7 @@
 
 [![Forge Neo](https://img.shields.io/badge/Forge-Neo-blue)](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)
 [![Gradio](https://img.shields.io/badge/Gradio-4.40.0-orange)](https://gradio.app/)
-[![Version](https://img.shields.io/badge/Version-0.3.0-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
+[![Version](https://img.shields.io/badge/Version-0.3.1-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
 
 > **Extension for [Stable Diffusion WebUI Forge - Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)**
@@ -34,9 +34,17 @@ For the **PAN 2** video model, the panel becomes a **timeline of the clip**: lay
 
 ## 🆕 What's New
 
+### v0.3.1 - PAN 2 Timeline Fixes
+
+- **Tested with PAN 2** - a five-second clip built on the timeline in Forge Neo, from the panel to the MP4
+- **Dark fields** - the PAN 2 fields follow Forge's dark theme instead of white boxes with light text, and the examples in empty fields are faded and in italics, so they no longer look filled in
+- **The timeline appears by itself** when you pick the **pan2** preset or a PAN 2 checkpoint, at the length that preset's Frames sets (it used to need a click in the panel, and could keep the previous preset's length)
+- **A drag ends when you let go**, even where the browser loses the release: a line between events no longer follows the next move of the mouse
+- **Quality** is listed under "Before you generate" when it is empty, like the other fields
+
 ### v0.3.0 - PAN 2 Timeline, Undo and Shortcuts
 
-- **PAN 2 format** - a timeline of the clip instead of the frame: events, camera moves and each subject's actions, written as [PAN 2](https://huggingface.co/IFM/PAN2)'s structured description for the [PAN 2 extension](https://github.com/eduardoabreu81/pan2-forge-neo) (work in progress); **Auto** picks it with the **pan2** preset or a PAN 2 checkpoint
+- **PAN 2 format** - a timeline of the clip instead of the frame: events, camera moves and each subject's actions, written as [PAN 2](https://huggingface.co/IFM/PAN2)'s structured description for the [PAN 2 extension](https://github.com/eduardoabreu81/pan2-forge-neo) ; **Auto** picks it with the **pan2** preset or a PAN 2 checkpoint
 - **Undo and Redo** for the boxes - ↶ and ↷, or Ctrl+Z and Ctrl+Y; a description typed in one go, or a box nudged several times, undoes as one step
 - **Side handles** on the selected box, and **Shift** keeps its shape while you resize it
 - **⧉ Duplicate** a box, or Ctrl+D - the copy lands a little below and to the right, with its own color
@@ -178,14 +186,14 @@ For the **PAN 2** video model, the panel becomes a **timeline of the clip**: lay
 
 <p align="center"><img src=".github/images/models.jpg" alt="Top: the teapot and vase layout as coordinates, on FLUX 3 and on Qwen-Image 2.1. Bottom: the cactus box drawn on the picture, on FLUX 3 and on Qwen-Image 2.1" width="560"></p>
 
-Regional Boxes works with four models, each in the format it was trained on. Tested on an 8 GB RTX 2070:
+Regional Boxes works with four models, each in the format it was trained on. The image models were tested on an 8 GB RTX 2070, PAN 2 on an RTX 6000 Ada (48 GB):
 
 | Model | Format | |
 | :--- | :--- | :--- |
 | **FLUX 3 Image Klein** | Coordinates in the prompt | ✅ top left: things land in their boxes |
 | **Qwen-Image 2.1** | Marks on the picture | ✅ bottom right: the cactus in the box, the outline gone |
 | **MOSS-Image** | Layout prompt | ✅ the poster above: title, fox and subtitle in their boxes |
-| **PAN 2** | Timeline of the clip | 🚧 work in progress, like the [PAN 2 extension](https://github.com/eduardoabreu81/pan2-forge-neo) |
+| **PAN 2** | Timeline of the clip | ✅ a five-second clip built on the timeline: [PAN 2 Examples](https://github.com/eduardoabreu81/pan2-forge-neo/wiki/Examples) |
 
 FLUX 3 and Qwen-Image 2.1 do not follow each other's format (top right, bottom left), so **Auto** picks the format by the loaded model. With any other model the panel says so and writes nothing. For SD 1.5, SDXL, Anima, Z-Image and Krea 2, region tools that steer the model's attention work instead: [Forge Couple](https://github.com/Haoming02/sd-forge-couple) and [Regional Prompter](https://github.com/hako-mikan/sd-webui-regional-prompter).
 
