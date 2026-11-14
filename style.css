@@ -386,6 +386,15 @@
     min-width: 0;
 }
 
+/* an example in an empty field is not a value: it stays faded, in italics, so it does not read as filled in */
+.regional-boxes input.regional-boxes-pan2-input::placeholder,
+.regional-boxes textarea.regional-boxes-pan2-input::placeholder,
+.regional-boxes-pan2 input.regional-boxes-coord::placeholder {
+    color: var(--input-placeholder-color, #9ca3af);
+    opacity: 0.55;
+    font-style: italic;
+}
+
 .regional-boxes-pan2 textarea {
     resize: vertical;
 }
