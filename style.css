@@ -372,7 +372,9 @@
     font-size: 0.9em;
 }
 
-.regional-boxes-pan2-input,
+/* with the tag and the panel's class, so Gradio's white `.gradio-container [type=text]` does not win over the theme */
+.regional-boxes input.regional-boxes-pan2-input,
+.regional-boxes textarea.regional-boxes-pan2-input,
 .regional-boxes-pan2 select,
 .regional-boxes-pan2 input.regional-boxes-coord {
     padding: 2px 6px;
