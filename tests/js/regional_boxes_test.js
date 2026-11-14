@@ -502,9 +502,10 @@ const tests = {
         model.events[1].actions[0].end = 120;
         model.subjects[0].attribute = "";
         model.events[0].desc = "word ".repeat(201);
+        model.quality = "";
         const problems = R.checkPan2(model).join("\n");
         for (const want of [/First frame names a subject/, /static and moving at once/, /camera 1 has no move/, /not inside its event/,
-            /<\|Subject1\|> needs a name/, /Event 1 has more than 200 words/]) {
+            /<\|Subject1\|> needs a name/, /Event 1 has more than 200 words/, /Quality is empty/]) {
             assert.match(problems, want);
         }
     },

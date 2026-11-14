@@ -823,7 +823,8 @@
     // what PAN 2's prompt guide asks that the description does not do yet, one line each
     function checkPan2(model) {
         const out = [];
-        const need = [["style", "Video style"], ["lighting", "Lighting"], ["view", "Perspective"], ["firstFrame", "First frame"]];
+        const need = [["style", "Video style"], ["lighting", "Lighting"], ["view", "Perspective"], ["firstFrame", "First frame"],
+            ["quality", "Quality"]];
         for (const [key, name] of need) if (!trimmed(model[key])) out.push(`${name} is empty.`);
         if (wordCount(model.firstFrame) > PAN2_MAX_WORDS) out.push(`First frame has more than ${PAN2_MAX_WORDS} words.`);
         if (/<\|Subject\d+\|>/.test(model.firstFrame)) out.push("First frame names a subject by its ID: describe it in words; IDs belong in actions.");
@@ -1156,6 +1157,12 @@
         // drags of the lines between events, camera moves, the ends of an action, or a new action
         window.addEventListener("pointermove", (ev) => {
             if (!held || !ev.isPrimary || !track) return;
+            // the button was let go where no pointerup reached us (outside the window, a lost event): the drag is over,
+            // or the next move of the mouse would drag the line along with it
+            if (ev.pointerType === "mouse" && ev.buttons === 0) {
+                release();
+                return;
+            }
             const m = st.model, t = at(ev);
             if (held.type === "event") {
                 const k = held.k, e = m.events[k], next = m.events[k + 1];
@@ -1187,7 +1194,7 @@
             }
             render();
         });
-        window.addEventListener("pointerup", () => {
+        function release() {
             if (!held) return;
             if (held.type === "new" && !held.action) {
                 // a click on the lane, not a drag: an action over the rest of the event
@@ -1201,7 +1208,8 @@
             render();
             ctx.changed();
             if (created) node.querySelector(".regional-boxes-pan2-action.selected input.regional-boxes-pan2-grow")?.focus();
-        });
+        }
+        window.addEventListener("pointerup", release);
         window.addEventListener("pointercancel", () => { held = null; });
 
         // ---- the selected event: what happens, its camera moves and the subjects' actions ----
@@ -2276,6 +2284,9 @@
             const node = app.querySelector(`#${id}`);
             if (node) node.addEventListener("change", () => setTimeout(refreshFormat, 100));
         }
+        // Gradio 4's dropdowns change their value without a change event, so a new preset or checkpoint went unnoticed
+        // until a click in the panel: while the panel is open, it checks the loaded model once a second
+        setInterval(() => { if (host.offsetParent) refreshFormat(); }, 1000);
         host.closest(".gradio-accordion, .block")?.addEventListener("click", () => setTimeout(() => { fitFrame(); refreshFormat(); }, 50));
         fitFrame();
         render();
