@@ -4,7 +4,7 @@
 
 [![Forge Neo](https://img.shields.io/badge/Forge-Neo-blue)](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)
 [![Gradio](https://img.shields.io/badge/Gradio-4.40.0-orange)](https://gradio.app/)
-[![Version](https://img.shields.io/badge/Version-0.3.1-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
+[![Version](https://img.shields.io/badge/Version-0.4.0-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
 
 > **Extension for [Stable Diffusion WebUI Forge - Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)**
@@ -33,6 +33,15 @@ For the **PAN 2** video model, the panel becomes a **timeline of the clip**: lay
 ---
 
 ## 🆕 What's New
+
+### v0.4.0 - LoRAs per Box, Picture Strength and W×H
+
+- **+ LoRA** next to each MOSS-Image box, and next to the Additional prompt (MOSS-Image and PAN 2): a list of the LoRAs of Forge's Lora tab, with their previews, to search by name or folder; a pick adds the LoRA with the weight and trigger words its card sets, a second pick takes it out
+- **A LoRA in a box's description stays in that box's caption** in the layout. With [MOSS Regional LoRA](https://github.com/Haoming02/sd-webui-forge-classic/discussions/1645) (from SillySilk's Forge Neo fork) it acts only inside the box; without it, Forge applies it to the whole picture, as any LoRA in the prompt
+- **Picture** - how strong the picture behind the boxes is, from faint to full; kept for the next time
+- **⇅ W×H** swaps Width and Height: portrait to landscape and back, with the frame and the layout following
+- **The selected box comes to the front**, with its tag and handles over the boxes it overlaps
+- **Change a box's type on the frame** - a click on the label at the bottom of the selected box takes the next: object, character, text with MOSS-Image; place, add new, from reference, remove with FLUX 3
 
 ### v0.3.1 - PAN 2 Timeline Fixes
 
@@ -146,6 +155,7 @@ For the **PAN 2** video model, the panel becomes a **timeline of the clip**: lay
 - Under each box, its edges in pixels from the center of the picture, as the layout uses them - type a number to set an edge exactly
 - **Read from prompt** loads a layout back, yours or one you pasted, to adjust it
 - **Additional prompt** holds what goes outside the layout - LoRA tags such as `<lora:name:1>`, their trigger words, any other words: they go after the layout, where Forge Neo still finds them, and tags already in the prompt are kept
+- **+ LoRA** picks a LoRA from Forge's Lora tab, with its weight and trigger words: next to the Additional prompt for the whole picture, next to a box for that box's caption. A LoRA in a box acts only inside it with [MOSS Regional LoRA](https://github.com/Haoming02/sd-webui-forge-classic/discussions/1645) (SillySilk's Forge Neo fork); otherwise Forge applies it to the whole picture
 - **Styles** picked under Generate go into the scene caption when you generate, not after the layout, also with sd-dynamic-prompts on; their negative part goes to the negative prompt as usual, and the infotext names them under *Regional boxes styles*
 - Change the size and the layout follows: the boxes in the prompt are moved to fit, and the panel says so
 - In img2img, draw over the input picture and describe the new version: things keep their place, while captions and words can change
@@ -163,7 +173,7 @@ For the **PAN 2** video model, the panel becomes a **timeline of the clip**: lay
 - Drag on a subject's lane to add what it does, and drag an action's edges to change when it starts and ends
 - **Write to prompt** turns it all into PAN 2's JSON description; **Read from prompt** loads one back, and fits its times to the clip if its length was different
 - Before you generate, the panel lists what PAN 2's prompt guide asks that the description does not do yet - an empty field, an action outside its event, a description too long
-- **Additional prompt** holds what goes outside the description, such as LoRA tags
+- **Additional prompt** holds what goes outside the description, such as LoRA tags; **+ LoRA** picks them from Forge's Lora tab
 - Needs the [PAN 2 extension](https://github.com/eduardoabreu81/pan2-forge-neo), which uses the description as written even with sd-dynamic-prompts on
 
 ### ✏️ Editing the Boxes
@@ -173,6 +183,8 @@ For the **PAN 2** video model, the panel becomes a **timeline of the clip**: lay
 - **⧉** duplicates a box (Ctrl+D); Delete removes it, Esc lets it go, the arrow keys move it one step (ten with Shift)
 - Double-click a box to jump to its description
 - **Guides** draw the thirds, the center or the golden ratio over the frame
+- The selected box comes to the front; the label at its bottom changes what it is with a click (object, character, text with MOSS-Image)
+- **Picture** sets how strong the picture behind the boxes is, and **⇅ W×H** swaps Width and Height
 
 ### 🛡️ Safe by Design
 
@@ -249,6 +261,8 @@ For edits, use img2img with **Denoising strength** 1 and the model's reference o
 - **[MOSS-Image](https://github.com/OpenMOSS/MOSS-Image)** by OpenMOSS - the layout prompt format
 - **[PAN 2](https://huggingface.co/IFM/PAN2)** by the Institute of Foundation Models (IFM), MBZUAI - the structured description and its prompt guide
 - **[BBox Studio](https://github.com/Haoming02/sd-webui-forge-classic/discussions/1625)** - the ideas for undo, side handles, duplicate, keys and guides
+- **[SillySilk's JSON Builder](https://github.com/Haoming02/sd-webui-forge-classic/discussions/1645)** ([Forge-Neo-Silk-Custom](https://github.com/SillySilk/Forge-Neo-Silk-Custom)) - MOSS Regional LoRA, and the ideas for the LoRA picker, the picture strength, the box type on the frame and the selected box in front
+- **[ersatzForge](https://github.com/DenOfEquity/ersatzForge)** by DenOfEquity - the idea for the Width/Height swap
 
 ---
 
