@@ -4,7 +4,7 @@
 
 [![Forge Neo](https://img.shields.io/badge/Forge-Neo-blue)](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)
 [![Gradio](https://img.shields.io/badge/Gradio-4.40.0-orange)](https://gradio.app/)
-[![Version](https://img.shields.io/badge/Version-0.4.0-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
+[![Version](https://img.shields.io/badge/Version-0.4.1-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
 
 > **Extension for [Stable Diffusion WebUI Forge - Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)**
@@ -33,6 +33,11 @@ For the **PAN 2** video model, the panel becomes a **timeline of the clip**: lay
 ---
 
 ## 🆕 What's New
+
+### v0.4.1 - LoRAs Kept in Their Boxes
+
+- **A LoRA in a box acts only inside it** with the [MOSS-Image extension](https://github.com/eduardoabreu81/moss-image-forge-neo) 0.1.8 or newer - on its own backend and on Forge Neo's built-in MOSS-Image, also with sd-dynamic-prompts on. Tested on an RTX 2070: an anime LoRA in one box and a comic LoRA in another change those boxes, and the rest of the picture stays as it is without them
+- The **+ LoRA** button says whether the LoRA will stay in its box or act on the whole picture
 
 ### v0.4.0 - LoRAs per Box, Picture Strength and W×H
 
@@ -155,7 +160,7 @@ For the **PAN 2** video model, the panel becomes a **timeline of the clip**: lay
 - Under each box, its edges in pixels from the center of the picture, as the layout uses them - type a number to set an edge exactly
 - **Read from prompt** loads a layout back, yours or one you pasted, to adjust it
 - **Additional prompt** holds what goes outside the layout - LoRA tags such as `<lora:name:1>`, their trigger words, any other words: they go after the layout, where Forge Neo still finds them, and tags already in the prompt are kept
-- **+ LoRA** picks a LoRA from Forge's Lora tab, with its weight and trigger words: next to the Additional prompt for the whole picture, next to a box for that box's caption. A LoRA in a box acts only inside it with [MOSS Regional LoRA](https://github.com/Haoming02/sd-webui-forge-classic/discussions/1645) (SillySilk's Forge Neo fork); otherwise Forge applies it to the whole picture
+- **+ LoRA** picks a LoRA from Forge's Lora tab, with its weight and trigger words: next to the Additional prompt for the whole picture, next to a box for that box's caption. A LoRA in a box acts only inside it with the [MOSS-Image extension](https://github.com/eduardoabreu81/moss-image-forge-neo) 0.1.8 or newer (or SillySilk's [MOSS Regional LoRA](https://github.com/Haoming02/sd-webui-forge-classic/discussions/1645)); otherwise Forge applies it to the whole picture
 - **Styles** picked under Generate go into the scene caption when you generate, not after the layout, also with sd-dynamic-prompts on; their negative part goes to the negative prompt as usual, and the infotext names them under *Regional boxes styles*
 - Change the size and the layout follows: the boxes in the prompt are moved to fit, and the panel says so
 - In img2img, draw over the input picture and describe the new version: things keep their place, while captions and words can change
