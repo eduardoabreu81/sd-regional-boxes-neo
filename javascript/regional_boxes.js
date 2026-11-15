@@ -302,16 +302,17 @@
         return MOSS_LABELS.includes(el.label) ? el.label : "object";
     }
 
-    // the box's tag on the frame: its number and what it holds (a text box's words, else its caption), shortened; only
-    // its label while it holds nothing yet. Shown only: the layout has no name for an item
+    // the box's tag on the frame: its number and what it holds (a text box's words, else its caption without its LoRA
+    // tags), shortened; only its label while it holds nothing yet. Shown only: the layout has no name for an item
     function mossTag(el, i) {
-        const words = String((mossLabel(el) === "text" && String(el.text || "").trim()) || el.desc || "").replace(/\s+/g, " ").trim();
+        const words = String((mossLabel(el) === "text" && String(el.text || "").trim()) || splitTags(el.desc).text).replace(/\s+/g, " ").trim();
         const shown = words.length > 24 ? `${words.slice(0, 23).trimEnd()}…` : words;
         return `${i + 1} ${shown || mossLabel(el)}`;
     }
 
+    // a caption that is only a LoRA tag says nothing of how the box looks
     function isMossComplete(el) {
-        if (!el.tgt || !String(el.desc || "").trim()) return false;
+        if (!el.tgt || !splitTags(el.desc).text) return false;
         return mossLabel(el) !== "text" || !!String(el.text || "").trim();
     }
 
@@ -529,6 +530,50 @@
         if (!ours) return null;
         layout.items.forEach((o, i) => { o.bbox = mossBox(done[i].tgt, to[0], to[1]); });
         return joinMoss(JSON.stringify(layout), parts);
+    }
+
+    // ---- LoRAs from Forge's own cards ----
+    // A card of the Lora tab adds its text with onclick="cardClicked('txt2img', <text>, <negative>, true)", where the
+    // text is an expression Forge wrote: "<lora:name:" + weight + ">" + " trigger words". Running it with a cardClicked
+    // of our own gives the same text a click on the card would add, with the card's weight and trigger words.
+    function cardPrompt(onclick, options) {
+        let out = null;
+        try {
+            new Function("cardClicked", "opts", String(onclick || ""))((tab, text, negative) => {
+                out = {text: String(text || "").trim(), negative: String(negative || "").trim()};
+            }, options || {});
+        } catch (e) {
+            return null;
+        }
+        return out && out.text ? out : null;
+    }
+
+    function escapeRegExp(text) {
+        return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    // where text's network tag (and the trigger words after it, when they follow it) is in value, whatever its weight
+    function networkPattern(text) {
+        const m = /^<([^:<>]+):([^:<>]+)(?::[^<>]*)?>([\s\S]*)$/.exec(String(text || "").trim());
+        if (!m) return null;
+        const after = m[3].trim();
+        return new RegExp(`[ \\t]*<${escapeRegExp(m[1])}:${escapeRegExp(m[2])}(?::[^<>]*)?>${after ? `(?:\\s*${escapeRegExp(after)})?` : ""}`, "gi");
+    }
+
+    function hasNetwork(value, text) {
+        const re = networkPattern(text);
+        return !!re && re.test(String(value || ""));
+    }
+
+    // a card's text added to a field, or taken out of it when its LoRA is already there (as a second click on a card
+    // does in Forge's prompt)
+    function toggleNetwork(value, text, separator = " ") {
+        const current = String(value || "");
+        const add = String(text || "").trim();
+        if (!add) return current;
+        if (hasNetwork(current, add)) return current.replace(networkPattern(add), "").replace(/[ \t]{2,}/g, " ").trim();
+        const kept = current.replace(/\s+$/, "");
+        return kept ? `${kept}${separator}${add}` : add;
     }
 
     // ---- moving and resizing a drawn box (0-1000 grid) ----
@@ -883,6 +928,7 @@
     const api = {KINDS, FORMATS, PALETTE, buildLayout, writeLayout, readLayout, findLayoutSpan, elementJson, isComplete,
         buildNotes, writeNotes, marksPayload, marksOf, MOSS_LABELS, MOSS_CANVASES, mossBox, gridBox, isMossComplete, mossTag, parseMoss,
         mossParts, mossExtra, layoutStripped, mossCaption, parseMeta, writeMoss, readMoss, mossOutOfBounds, rescaleMoss, moveBox, resizeBox, centerBox, resizeByTarget, createHistory, GUIDES,
+        cardPrompt, hasNetwork, toggleNetwork,
         PAN2_CAMERA, pan2Id, pan2Duration, pan2Range, parsePan2Range, newPan2, pan2Object, buildPan2, parsePan2, pan2Parts, pan2Extra, readPan2,
         fitPan2, checkPan2, writePan2, resolveFormat};
     if (typeof module !== "undefined" && module.exports) {
@@ -921,6 +967,7 @@
     }
 
     const GUIDES_KEY = "regional-boxes-guides";
+    const PICTURE_KEY = "regional-boxes-picture";
 
     function savedGuides() {
         try {
@@ -931,10 +978,146 @@
         }
     }
 
+    // how strong the picture behind the boxes is, in percent
+    function savedPicture() {
+        try {
+            const saved = parseInt(localStorage.getItem(PICTURE_KEY), 10);
+            return saved >= 0 && saved <= 100 ? saved : 75;
+        } catch (e) {
+            return 75;
+        }
+    }
+
+    function keep(key, value) {
+        try {
+            localStorage.setItem(key, value);
+        } catch (e) {
+            // no storage (a private window): the choice lasts until the page is reloaded
+        }
+    }
+
     function numberOf(root, id, fallback) {
         const input = root.querySelector(`#${id} input[type=number]`);
         const v = input ? parseFloat(input.value) : NaN;
         return v > 0 ? v : fallback;
+    }
+
+    // ---- the LoRA picker: the cards of Forge's Lora tab, in a list to search, for a field of the panel ----
+    // open(anchor, field, apply): shown under anchor; a pick hands apply() the field's value with the card's text
+    // added, or taken out when that LoRA is already in it. The card's negative text goes to the negative prompt, as a
+    // click on the card would add it.
+
+    const LORA_SHOWN = 80;
+
+    // Forge's settings: script.js declares them with `let opts`, so they are a global name but not window.opts
+    function forgeOpts() {
+        try {
+            // eslint-disable-next-line no-undef
+            return (typeof opts !== "undefined" && opts) || window.opts || {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function createLoraPicker(app, tab, host) {
+        const search = el("input", {type: "text", class: "regional-boxes-lora-search", placeholder: "Search the LoRAs: name or folder"});
+        const listNode = el("div", {class: "regional-boxes-lora-list"});
+        const node = el("div", {class: "regional-boxes-lora"}, search, listNode);
+        node.style.display = "none";
+        host.append(node);
+        let target = null, cards = [];
+
+        function load() {
+            cards = Array.from(app.querySelectorAll(`#${tab}_lora_cards_html .card[onclick]`)).map((card) => {
+                const name = card.dataset.name || card.querySelector(".name")?.textContent || "";
+                const parts = String(card.dataset.sortPath || "").split(/[\\/]/);
+                const folder = parts.length > 1 && !/^loras?$/i.test(parts[parts.length - 2]) ? parts[parts.length - 2] : "";
+                return {card, name, folder, preview: card.querySelector("img.preview")?.getAttribute("src") || "",
+                    words: `${name} ${folder} ${card.querySelector(".additional")?.textContent || ""}`.toLowerCase()};
+            });
+        }
+
+        function show() {
+            const words = search.value.toLowerCase().split(/\s+/).filter(Boolean);
+            const found = cards.filter((c) => words.every((w) => c.words.includes(w)));
+            const value = target ? target.field.value : "";
+            const rows = found.slice(0, LORA_SHOWN).map((c) => {
+                const text = cardPrompt(c.card.getAttribute("onclick"), forgeOpts());
+                const there = !!text && hasNetwork(value, text.text);
+                return el("div", {class: `regional-boxes-lora-item${there ? " there" : ""}`,
+                    title: text ? (there ? `Take ${text.text} out` : `Add ${text.text}`) : "", onclick: () => pick(text)},
+                c.preview ? el("img", {src: c.preview, alt: "", loading: "lazy"}) : el("span", {class: "regional-boxes-lora-blank"}),
+                el("span", {class: "regional-boxes-lora-name"}, c.name), el("span", {class: "regional-boxes-lora-folder"}, c.folder),
+                el("span", {class: "regional-boxes-lora-mark"}, there ? "✓" : ""));
+            });
+            const empty = !cards.length ? "No LoRA cards on the page: open Forge's Lora tab once, or refresh it."
+                : !found.length ? "No LoRA matches." : "";
+            const more = found.length > LORA_SHOWN ? `${found.length - LORA_SHOWN} more: type to narrow the list.` : "";
+            listNode.replaceChildren(...rows, ...[empty, more].filter(Boolean).map((t) => el("div", {class: "regional-boxes-lora-note"}, t)));
+            listNode.scrollTop = 0;
+        }
+
+        function pick(text) {
+            if (!text || !target) return;
+            const {field, apply} = target;
+            apply(toggleNetwork(field.value, text.text, forgeOpts().extra_networks_add_text_separator || " "));
+            const negative = app.querySelector(`#${tab}_neg_prompt textarea`);
+            if (text.negative && negative && !negative.value.includes(text.negative)) {
+                setValue(negative, negative.value.trim() ? `${negative.value.trim()}, ${text.negative}` : text.negative);
+            }
+            close();
+        }
+
+        function open(anchor, field, apply) {
+            if (target && target.field === field && node.style.display !== "none") return close();
+            target = {field, apply};
+            load();
+            node.style.display = "";
+            const box = host.getBoundingClientRect(), at = anchor.getBoundingClientRect();
+            node.style.top = `${at.bottom - box.top + 4}px`;
+            node.style.left = `${Math.max(0, Math.min(at.left - box.left, box.width - node.offsetWidth))}px`;
+            show();
+            search.focus();
+            search.select();
+        }
+
+        function close() {
+            node.style.display = "none";
+            target = null;
+        }
+
+        search.addEventListener("input", show);
+        search.addEventListener("keydown", (ev) => {
+            if (ev.key === "Escape") {
+                close();
+                ev.preventDefault();
+                ev.stopPropagation();
+            } else if (ev.key === "Enter") {
+                listNode.querySelector(".regional-boxes-lora-item")?.click();
+                ev.preventDefault();
+            }
+        });
+        // a click anywhere else closes it (the button that opened it toggles it)
+        document.addEventListener("pointerdown", (ev) => {
+            if (node.style.display !== "none" && !node.contains(ev.target) && !ev.target.closest?.(".regional-boxes-lora-button")) close();
+        }, true);
+        return {open, close};
+    }
+
+    // a "+ LoRA" button for a field: the picker opens under it, and apply(value) puts the new value in place
+    function loraButton(picker, field, apply, title) {
+        const button = el("button", {class: "secondary gradio-button regional-boxes-lora-button", title,
+            onclick: (ev) => { ev.preventDefault(); picker.open(button, field, apply); }}, "+ LoRA");
+        return button;
+    }
+
+    // MOSS Regional LoRA (SillySilk's Forge Neo fork) keeps a LoRA in an item's caption inside that item's box; its
+    // setting is in Forge's opts when it is installed
+    function regionalLoraTitle() {
+        const on = forgeOpts().moss_regional_lora;
+        if (on === true) return "Add a LoRA to this box's description: MOSS Regional LoRA keeps it inside the box";
+        return "Add a LoRA to this box's description. Forge applies it to the whole picture; with MOSS Regional LoRA "
+            + `(SillySilk's Forge Neo fork${on === false ? ", turned off in Settings now" : ""}) it acts only inside this box`;
     }
 
     // ---- the PAN 2 editor: the description's fields, its subjects and a timeline of events, camera moves and actions ----
@@ -984,6 +1167,8 @@
                 title: "Written after the description, outside it: LoRA tags. Any words here reach the model too.",
                 oninput: (ev) => { st.extra = ev.target.value; st.extraEdited = true; }});
             extra.value = st.extra;
+            const addLora = loraButton(ctx.lora, extra, (v) => { extra.value = st.extra = v; st.extraEdited = true; },
+                "Add a LoRA from Forge's Lora tab, with its weight and trigger words");
             const first = field("First frame", "firstFrame", {rows: "3",
                 placeholder: "The opening picture, as a still: who and what is where, how it looks, the light and the framing. No IDs here.",
                 title: "init_frame_visual_description: one still-state paragraph, up to 200 words"});
@@ -1000,7 +1185,8 @@
                 field("Perspective", "view", {placeholder: "eye-level medium shot", title: "perspective_view: viewpoint and framing"}),
                 field("Quality", "quality", {placeholder: "sharp natural detail", title: "quality.video_quality: the finish, in a few words"}),
                 field("Text and logos", "overlays", {placeholder: "none", title: "quality.text_logos_overlays: on-screen text, logos or overlays; empty for none"}),
-                el("label", {class: "regional-boxes-pan2-field"}, el("span", {}, "Additional prompt"), suggesting(extra)),
+                el("label", {class: "regional-boxes-pan2-field"}, el("span", {}, "Additional prompt"),
+                    el("span", {class: "regional-boxes-with-lora"}, suggesting(extra), addLora)),
                 first);
         }
 
@@ -1481,15 +1667,26 @@
         const guideSelect = el("select", {title: "Lines over the frame to help place the boxes", onchange: (ev) => {
             state.guides = ev.target.value;
             showGuides();
-            try {
-                localStorage.setItem(GUIDES_KEY, state.guides);
-            } catch (e) {
-                // no storage (a private window): the choice lasts until the page is reloaded
-            }
+            keep(GUIDES_KEY, state.guides);
         }}, ...Object.keys(GUIDE_LABELS).map((k) => el("option", {value: k}, GUIDE_LABELS[k])));
         guideSelect.value = state.guides;
         const guideLabel = el("label", {class: "regional-boxes-draw"}, "Guides ", guideSelect);
-        const top = el("div", {class: "regional-boxes-top"}, el("span", {}, "Format "), formatSelect, resolved, tab === "img2img" ? drawLabel : lastLabel, hideLabel, guideLabel, mossOptions);
+        // the picture behind the boxes, from faint to full strength; remembered by the browser
+        const pictureRange = el("input", {type: "range", min: "0", max: "100", step: "5", value: String(savedPicture()),
+            class: "regional-boxes-opacity", title: "How strong the picture behind the boxes is",
+            oninput: (ev) => {
+                showOpacity();
+                keep(PICTURE_KEY, ev.target.value);
+            }});
+        const pictureLabel = el("label", {class: "regional-boxes-draw"}, "Picture ", pictureRange);
+        // Width and Height swapped, as Forge's own ⇅ does: the frame, and a MOSS layout written by the panel, follow
+        const swapButton = el("button", {class: "secondary gradio-button regional-boxes-swap", title: "Swap Width and Height: portrait ⇄ landscape",
+            onclick: (ev) => {
+                ev.preventDefault();
+                swapSize();
+            }}, "⇅ W×H");
+        const top = el("div", {class: "regional-boxes-top"}, el("span", {}, "Format "), formatSelect, resolved, tab === "img2img" ? drawLabel : lastLabel,
+            hideLabel, guideLabel, pictureLabel, swapButton, mossOptions);
         const sceneInput = el("textarea", {class: "regional-boxes-scene-text regional-boxes-ac", rows: "2",
             placeholder: "The whole picture in a sentence or two: who is there, doing what, where, in what light...",
             title: "The scene, the layout's caption (summary.caption)",
@@ -1497,8 +1694,11 @@
         const extraInput = el("input", {type: "text", class: "regional-boxes-extra regional-boxes-ac", placeholder: "<lora:...>, trigger words, anything else",
             title: "Written after the layout, outside it: LoRA tags, trigger words or any other words",
             oninput: (ev) => { state.extra = ev.target.value; state.edited.extra = true; }});
+        const picker = createLoraPicker(app, tab, host);
+        const extraLora = loraButton(picker, extraInput, (v) => { extraInput.value = state.extra = v; state.edited.extra = true; },
+            "Add a LoRA from Forge's Lora tab, with its weight and trigger words: after the layout, it acts on the whole picture");
         const sceneRow = el("div", {class: "regional-boxes-scene"},
-            el("label", {}, "Scene", suggesting(sceneInput)), el("label", {}, "Additional prompt", suggesting(extraInput)));
+            el("label", {}, "Scene", suggesting(sceneInput)), el("label", {}, "Additional prompt", suggesting(extraInput), extraLora));
 
         const frame = el("div", {class: "regional-boxes-frame", title: "Drag to draw a box. The selected box: drag its tag to move it "
             + "and its handles to resize it (Shift keeps its shape); the arrow keys move it, Delete removes it, Ctrl+D duplicates it, "
@@ -1545,6 +1745,7 @@
             duration: () => pan2Duration(numberOf(app, `${tab}_batch_size`, 241)),
             picture: () => (tab === "img2img" ? app.querySelector("#img2img_image img.forge-image") : null),
             changed: () => checkSize(),
+            lora: picker,
         });
         host.insertBefore(pan2.node, frame);
 
@@ -1663,6 +1864,26 @@
                 background.style.display = "none";
             }
             frame.classList.toggle("has-picture", !!src);
+            showOpacity();
+        }
+
+        // the Picture slider: only when there is a picture behind the boxes
+        function showOpacity() {
+            frame.style.setProperty("--regional-boxes-picture", String(Number(pictureRange.value) / 100));
+            pictureLabel.style.display = format() !== FORMATS.pan2 && frame.classList.contains("has-picture") ? "" : "none";
+        }
+
+        // Forge's own switchWidthHeight when it is there, else the same by hand: both fields, then an input event each
+        function swapSize() {
+            if (typeof window.switchWidthHeight === "function") {
+                window.switchWidthHeight(tab);
+            } else {
+                const width = app.querySelector(`#${tab}_width input[type=number]`), height = app.querySelector(`#${tab}_height input[type=number]`);
+                if (!width || !height) return;
+                [width.value, height.value] = [height.value, width.value];
+                for (const input of [width, height]) input.dispatchEvent(new Event("input", {bubbles: true}));
+            }
+            fitFrame();
         }
 
         function colorOf(e) {
@@ -1688,6 +1909,7 @@
             for (const node of [frame, list]) node.style.display = timeline ? "none" : "";
             for (const node of [lastLabel, hideLabel, guideLabel, undoButton, redoButton]) node.style.display = timeline ? "none" : "";
             pan2.node.style.display = timeline ? "" : "none";
+            showOpacity();
             readButton.style.display = fmt === FORMATS.coords || fmt === FORMATS.moss || timeline ? "" : "none";
             writeButton.disabled = fmt === FORMATS.none;
             const armed = state.armed && state.elements[state.armed.i];
@@ -1718,6 +1940,8 @@
             const marks = fmt === FORMATS.marks, moss = fmt === FORMATS.moss;
             layer.replaceChildren();
             state.elements.forEach((e, i) => {
+                // the type is shown on where the box goes, or where it is in the reference when it is removed
+                const typedOn = !moss && (e.kind === KINDS.remove || !e.tgt) ? "src" : "tgt";
                 for (const which of ["src", "tgt"]) {
                     const b = e[which];
                     const hidden = marks || moss ? which === "src"
@@ -1739,10 +1963,37 @@
                             handle.style.borderColor = colorOf(e);
                             box.append(handle);
                         }
+                        if (which === typedOn && !marks) box.append(boxType(e, i, moss));
                     }
                     layer.append(box);
                 }
             });
+        }
+
+        // what the selected box is, changed on the frame as in its row: a click takes the next of MOSS-Image's object,
+        // character and text, or of FLUX 3's place, add new, from reference and remove (a box from a reference then asks
+        // where it is in it). A button, not a menu: a drop-down's list would cover the frame, and a tap on it could reach
+        // the frame below
+        function boxType(e, i, moss) {
+            const keys = moss ? MOSS_LABELS : Object.keys(LABELS);
+            const current = moss ? mossLabel(e) : e.kind;
+            const next = keys[(keys.indexOf(current) + 1) % keys.length];
+            const name = (k) => (moss ? k : LABELS[k]);
+            const button = el("button", {class: "regional-boxes-box-type", title: `${moss ? "What the box holds" : "What to do with the box"}: click for ${name(next)}`,
+                onpointerdown: (ev) => ev.stopPropagation(),
+                onclick: (ev) => {
+                    ev.preventDefault();
+                    remember();
+                    if (moss) {
+                        e.label = next;
+                    } else {
+                        e.kind = next;
+                        if ((e.kind === KINDS.ref || e.kind === KINDS.remove) && !e.src) return arm(i, "src");
+                    }
+                    render();
+                }}, `${name(current)} ▸`);
+            button.style.background = colorOf(e);
+            return button;
         }
 
         function renderList() {
@@ -1832,10 +2083,17 @@
             }}, ...MOSS_LABELS.map((k) => el("option", {value: k}, k)));
             label.value = mossLabel(e);
             text.style.display = label.value === "text" ? "" : "none";
-            row.append(swatch, el("span", {class: "regional-boxes-number"}, String(i + 1)), label,
-                suggesting(el("input", {type: "text", class: "regional-boxes-desc regional-boxes-ac", value: e.desc,
-                    placeholder: "How it looks: a flat blue mountain, a large dark-blue uppercase title...",
-                    oninput: (ev) => { e.desc = ev.target.value; touch(); renderBoxes(); }})),
+            const desc = el("input", {type: "text", class: "regional-boxes-desc regional-boxes-ac", value: e.desc,
+                placeholder: "How it looks: a flat blue mountain, a large dark-blue uppercase title...",
+                oninput: (ev) => { e.desc = ev.target.value; touch(); renderBoxes(); }});
+            // the LoRA goes into the box's caption, inside the layout: one step of undo
+            const lora = loraButton(picker, desc, (v) => {
+                remember();
+                desc.value = e.desc = v;
+                touch();
+                renderBoxes();
+            }, regionalLoraTitle());
+            row.append(swatch, el("span", {class: "regional-boxes-number"}, String(i + 1)), label, suggesting(desc), lora,
                 text,
                 el("button", {class: "secondary gradio-button", title: "Draw the box again", onclick: () => arm(i, "tgt")}, "Redraw"),
                 ...actions);

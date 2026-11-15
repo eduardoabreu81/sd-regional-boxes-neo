@@ -425,6 +425,34 @@ const tests = {
         assert.equal(R.mossTag({label: "character", text: "WINTER FOX", desc: "a red fox sitting in fresh snow"}, 2), "3 a red fox sitting in fr…");
         assert.equal(R.mossTag({label: "object", desc: ""}, 3), "4 object");
         assert.equal(R.mossTag({desc: "  "}, 4), "5 object");
+        // a LoRA in the caption is not shown on the tag, and a caption that is only a LoRA is not a description
+        assert.equal(R.mossTag({label: "object", desc: "a red fox <lora:fox_v2:0.8> foxstyle"}, 0), "1 a red fox foxstyle");
+        assert.equal(R.mossTag({label: "character", desc: "<lora:fox_v2:0.8>"}, 1), "2 character");
+        assert.equal(R.isMossComplete({label: "object", desc: "<lora:fox_v2:0.8>", tgt: [0, 0, 500, 500]}), false);
+        assert.equal(R.isMossComplete({label: "object", desc: "a fox <lora:fox_v2:0.8>", tgt: [0, 0, 500, 500]}), true);
+    },
+
+    "LoRA cards: the text a click on the card adds, with its weight and trigger words"() {
+        const opts = {extra_networks_default_multiplier: 1};
+        assert.deepEqual(R.cardPrompt(`cardClicked('txt2img', "<lora:1:" + opts.extra_networks_default_multiplier + ">" + " licking another's face", "", true);`, opts),
+            {text: "<lora:1:1> licking another's face", negative: ""});
+        assert.deepEqual(R.cardPrompt(`cardClicked('img2img', "<lora:fox v2:" + 0.8 + ">", "lowres", true);`, opts),
+            {text: "<lora:fox v2:0.8>", negative: "lowres"});
+        assert.equal(R.cardPrompt("extraNetworksRequestMetadata(event)", opts), null);
+        assert.equal(R.cardPrompt("this is not code (", opts), null);
+        assert.equal(R.cardPrompt(undefined, opts), null);
+    },
+
+    "LoRA cards: a second pick of the same LoRA takes it out, whatever its weight"() {
+        assert.equal(R.toggleNetwork("", "<lora:fox:1> foxstyle"), "<lora:fox:1> foxstyle");
+        assert.equal(R.toggleNetwork("a red fox  ", "<lora:fox:1> foxstyle"), "a red fox <lora:fox:1> foxstyle");
+        assert.equal(R.toggleNetwork("a red fox <lora:fox:0.6> foxstyle, in snow", "<lora:fox:1> foxstyle"), "a red fox, in snow");
+        assert.equal(R.toggleNetwork("a <lora:fox:0.6> fox", "<lora:fox:1>"), "a fox");
+        assert.equal(R.toggleNetwork("<lora:foxes:1>", "<lora:fox:1>"), "<lora:foxes:1> <lora:fox:1>");
+        assert.equal(R.toggleNetwork("<lora:f.x (v2):1>", "<lora:f.x (v2):0.5>"), "");
+        assert.equal(R.hasNetwork("a <LORA:Fox:1>", "<lora:fox:1>"), true);
+        assert.equal(R.hasNetwork("a fox", "<lora:fox:1>"), false);
+        assert.equal(R.toggleNetwork("a fox", "plain words"), "a fox plain words");
     },
 
     "MOSS: only a layout is read, and boxes past the picture are noticed"() {
