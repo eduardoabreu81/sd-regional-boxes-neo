@@ -36,7 +36,8 @@ For the **PAN 2** video model, the panel becomes a **timeline of the clip**: lay
 
 ### v0.4.1 - LoRAs Kept in Their Boxes
 
-- **A LoRA in a box acts only inside it** with the [MOSS-Image extension](https://github.com/eduardoabreu81/moss-image-forge-neo) 0.1.8 or newer - on its own backend and on Forge Neo's built-in MOSS-Image, also with sd-dynamic-prompts on. Tested on an RTX 2070: an anime LoRA in one box and a comic LoRA in another change those boxes, and the rest of the picture stays as it is without them
+- **A LoRA in a box acts only inside it** with the [MOSS-Image extension](https://github.com/eduardoabreu81/moss-image-forge-neo) 0.1.8 or newer - on its own backend and on Forge Neo's built-in MOSS-Image, also with sd-dynamic-prompts on
+- Tested on an RTX 2070: a hips slider in one woman's box and an age slider in the other's change only that woman each, and an anime LoRA in one box with a realism LoRA in the other give an anime woman next to a photographed one ([picture](#-layout-prompts-moss-image))
 - The **+ LoRA** button says whether the LoRA will stay in its box or act on the whole picture
 
 ### v0.4.0 - LoRAs per Box, Picture Strength and W×H
@@ -165,6 +166,9 @@ For the **PAN 2** video model, the panel becomes a **timeline of the clip**: lay
 - Change the size and the layout follows: the boxes in the prompt are moved to fit, and the panel says so
 - In img2img, draw over the input picture and describe the new version: things keep their place, while captions and words can change
 - Works in txt2img and img2img; needs the [MOSS-Image extension](https://github.com/eduardoabreu81/moss-image-forge-neo) 0.1.2 or newer, which keeps the layout whole with sd-dynamic-prompts installed
+
+<p align="center"><img src=".github/images/loras_per_box.jpg" alt="Two young women in jeans and t-shirts, same seed, faces enlarged below: no LoRA; a hips slider and an age slider on the whole picture, where both grow old and wide-hipped; and the hips slider in the left woman's box and the age slider in the right woman's, where only the left one gets wider hips and only the right one grows old" width="900"></p>
+<p align="center"><sub>+ LoRA in each box: a hips slider on the left, an age slider on the right - with the MOSS-Image extension 0.1.8, RTX 2070</sub></p>
 
 <p align="center"><img src=".github/images/moss_txt2img.jpg" alt="The MOSS-Image poster made in txt2img: WINTER FOX, a red fox, FORGE NEO" width="300"> <img src=".github/images/moss_img2img.jpg" alt="The same poster in img2img with the same boxes: ARCTIC FOX and a white arctic fox" width="300"></p>
 <p align="center"><sub>txt2img, then the same boxes in img2img with a new title and an arctic fox - 8-step LoRA, RTX 2070</sub></p>
