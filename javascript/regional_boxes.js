@@ -1111,13 +1111,19 @@
         return button;
     }
 
-    // MOSS Regional LoRA (SillySilk's Forge Neo fork) keeps a LoRA in an item's caption inside that item's box; its
-    // setting is in Forge's opts when it is installed
+    // A LoRA in an item's caption stays inside that item's box with the MOSS-Image extension 0.1.8+ (its setting
+    // moss_image_regional_lora) or with SillySilk's MOSS Regional LoRA (moss_regional_lora); each setting is in Forge's
+    // opts when its extension is installed
     function regionalLoraTitle() {
-        const on = forgeOpts().moss_regional_lora;
-        if (on === true) return "Add a LoRA to this box's description: MOSS Regional LoRA keeps it inside the box";
-        return "Add a LoRA to this box's description. Forge applies it to the whole picture; with MOSS Regional LoRA "
-            + `(SillySilk's Forge Neo fork${on === false ? ", turned off in Settings now" : ""}) it acts only inside this box`;
+        const o = forgeOpts();
+        const settings = [o.moss_image_regional_lora, o.moss_regional_lora].filter((v) => typeof v === "boolean");
+        if (settings.includes(true)) return "Add a LoRA to this box's description: it acts only inside this box";
+        if (settings.length) {
+            return "Add a LoRA to this box's description. Keeping LoRAs in their boxes is turned off in Settings → Stable Diffusion → "
+                + "MOSS-Image, so Forge applies it to the whole picture";
+        }
+        return "Add a LoRA to this box's description. Forge applies it to the whole picture; with the MOSS-Image extension 0.1.8 or "
+            + "newer it acts only inside this box";
     }
 
     // ---- the PAN 2 editor: the description's fields, its subjects and a timeline of events, camera moves and actions ----
