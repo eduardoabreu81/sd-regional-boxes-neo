@@ -39,7 +39,7 @@ For the **PAN 2** video model, the panel becomes a **timeline of the clip**: lay
 - **⛶ Full screen** - the same panel over the whole window: the frame as big as the screen lets it be, the boxes' rows beside it, **Write to prompt** at the top; Esc or ✕ brings it back to its place, with the boxes, undo and the fields as they were. On a phone the frame stays on top while the rows scroll under it, and the Back button closes it
 - **Zoom** - Ctrl + wheel (or a trackpad's pinch), two fingers on a touch screen, or **− 100% +** on the frame; in full screen the wheel alone zooms. Move around with the middle button, Space + drag, two fingers, or the wheel on a zoomed frame. Boxes drawn while zoomed land where you drew them
 - **Snap** - while a box is drawn, moved or resized, its edges and middle snap to the picture's edges and middle, the guides and the other boxes, with a line to show it; hold **Alt** to place it freely, or turn **Snap** off
-- **Tags** for each MOSS-Image box - keywords the model follows closely (the item's `tags`), next to its description
+- **Tags** for each MOSS-Image box - keywords the model follows closely (the item's `tags`), next to its description: on the same seed, tags gave the fisherman a white beard, a smile and a rope, and the boat peeling paint ([picture](#-layout-prompts-moss-image))
 - **Read from prompt keeps what the panel has no field for** - a palette on a box or on the scene, and any other field, as [MOSS Layout](https://github.com/SillySilk/sd-forge-moss-layout) writes them: Read then Write no longer drops them
 - **No Dynamic Prompts warning with MOSS-Image** when the MOSS-Image extension 0.1.8 or newer is installed, since it puts the layout's `{ }` back; without it the warning says to install it or turn Dynamic Prompts off
 
@@ -180,6 +180,9 @@ For the **PAN 2** video model, the panel becomes a **timeline of the clip**: lay
 
 <p align="center"><img src=".github/images/loras_per_box.jpg" alt="Two young women in jeans and t-shirts, same seed, faces enlarged below: no LoRA; a hips slider and an age slider on the whole picture, where both grow old and wide-hipped; and the hips slider in the left woman's box and the age slider in the right woman's, where only the left one gets wider hips and only the right one grows old" width="900"></p>
 <p align="center"><sub>+ LoRA in each box: a hips slider on the left, an age slider on the right - with the MOSS-Image extension 0.1.8, RTX 2070</sub></p>
+
+<p align="center"><img src=".github/images/tags_per_box.jpg" alt="The same harbor at dawn, same seed, an old fisherman in a yellow raincoat on the left and a red boat on the right. Without tags: a fisherman with a grey moustache, his hands down, and a boat in clean paint. With tags: the fisherman has a white beard, smiles and holds a rope, and the boat's red paint is peeling, with ropes on it" width="900"></p>
+<p align="center"><sub>Tags in the boxes, same seed: none on the left; <i>white beard, smiling, holding a rope</i> on the fisherman and <i>red paint, peeling, ropes</i> on the boat on the right - MOSS-Image turbo, 8 steps, sd-dynamic-prompts on, RTX 2070</sub></p>
 
 <p align="center"><img src=".github/images/moss_txt2img.jpg" alt="The MOSS-Image poster made in txt2img: WINTER FOX, a red fox, FORGE NEO" width="300"> <img src=".github/images/moss_img2img.jpg" alt="The same poster in img2img with the same boxes: ARCTIC FOX and a white arctic fox" width="300"></p>
 <p align="center"><sub>txt2img, then the same boxes in img2img with a new title and an arctic fox - 8-step LoRA, RTX 2070</sub></p>
