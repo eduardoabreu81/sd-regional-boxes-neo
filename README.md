@@ -1,3 +1,7 @@
+<p align="center">
+  <img src=".github/banner.jpg" alt="Regional Boxes for Forge Neo banner"/>
+</p>
+
 # 🔲 Regional Boxes for Forge Neo
 
 <div align="center">
