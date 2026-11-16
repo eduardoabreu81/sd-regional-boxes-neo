@@ -34,6 +34,92 @@
     overflow: hidden;
 }
 
+/* the picture and the boxes, zoomed and moved as one inside the frame (Ctrl + wheel, two fingers) */
+.regional-boxes-stage {
+    position: absolute;
+    inset: 0;
+    transform-origin: 0 0;
+}
+
+/* zoomed in: lines, tags and handles keep their size on screen */
+.regional-boxes-frame.zoomed .regional-boxes-box {
+    border-width: calc(3px / var(--regional-boxes-zoom, 1));
+}
+
+.regional-boxes-frame.zoomed .regional-boxes-box span,
+.regional-boxes-frame.zoomed .regional-boxes-handle {
+    transform: scale(calc(1 / var(--regional-boxes-zoom, 1)));
+}
+
+.regional-boxes-frame.zoomed .regional-boxes-box span {
+    transform-origin: top left;
+}
+
+.regional-boxes-frame.zoomed .regional-boxes-box button.regional-boxes-box-type {
+    transform: scale(calc(1 / var(--regional-boxes-zoom, 1)));
+    transform-origin: bottom left;
+}
+
+.regional-boxes-frame.zoomed .regional-boxes-guide.down,
+.regional-boxes-frame.zoomed .regional-boxes-snap.down {
+    width: calc(1px / var(--regional-boxes-zoom, 1));
+}
+
+.regional-boxes-frame.zoomed .regional-boxes-guide.across,
+.regional-boxes-frame.zoomed .regional-boxes-snap.across {
+    height: calc(1px / var(--regional-boxes-zoom, 1));
+}
+
+/* Space held, or the middle button: a drag moves around the zoomed picture */
+.regional-boxes-frame.grab {
+    cursor: grab;
+}
+
+.regional-boxes-frame.panning {
+    cursor: grabbing;
+}
+
+/* − 100% +: faint until the pointer is over the frame or the picture is zoomed */
+.regional-boxes-zoom {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    z-index: 3;
+    display: flex;
+    gap: 2px;
+    opacity: 0.45;
+    transition: opacity 0.15s;
+}
+
+.regional-boxes-frame:hover .regional-boxes-zoom,
+.regional-boxes-frame.zoomed .regional-boxes-zoom {
+    opacity: 1;
+}
+
+.regional-boxes-zoom button.gradio-button {
+    min-width: 26px;
+    padding: 0 6px;
+    font-size: 12px;
+    line-height: 22px;
+    cursor: pointer;
+}
+
+/* the lines a box being dragged snapped to */
+.regional-boxes-snaps {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.regional-boxes-snap {
+    position: absolute;
+    background: #ff3df5;
+}
+
+.regional-boxes-snap.down { top: 0; bottom: 0; width: 1px; margin-left: -0.5px; }
+.regional-boxes-snap.across { left: 0; right: 0; height: 1px; margin-top: -0.5px; }
+
 /* a picture behind the boxes hides the grid, which would show through it */
 .regional-boxes-frame.has-picture {
     background-image: none;
@@ -350,6 +436,139 @@
     width: 1.5em;
     text-align: center;
     font-size: 0.9em;
+}
+
+/* ---- full screen: the panel moved over the whole window ---- */
+
+html.regional-boxes-locked,
+html.regional-boxes-locked body {
+    overflow: hidden;
+}
+
+.regional-boxes-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    background: var(--body-background-fill, #0b0f19);
+    color: var(--body-text-color, inherit);
+}
+
+.regional-boxes-overlay-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    padding-top: max(8px, env(safe-area-inset-top));
+    border-bottom: 1px solid var(--border-color-primary, #444);
+}
+
+.regional-boxes-overlay-bar button.gradio-button {
+    padding: 4px 12px;
+}
+
+.regional-boxes-overlay-tab {
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: var(--background-fill-secondary, #222);
+    font-size: 0.85em;
+}
+
+.regional-boxes-overlay-size {
+    font-size: 0.85em;
+    opacity: 0.75;
+}
+
+.regional-boxes-overlay-gap {
+    flex: 1;
+}
+
+.regional-boxes-overlay-body {
+    flex: 1;
+    min-height: 0;
+    padding: 12px 16px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+/* the frame as big as the window lets it be on the left; everything else in a column on the right that scrolls while
+   the frame stays put */
+.regional-boxes.full {
+    height: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 32%);
+    grid-template-rows: repeat(9, auto) 1fr;
+    column-gap: 20px;
+    row-gap: 8px;
+    align-content: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.regional-boxes.full > * {
+    grid-column: 2;
+    min-width: 0;
+}
+
+/* the LoRA list is placed from the panel's own edges, not a column's */
+.regional-boxes.full > .regional-boxes-lora {
+    grid-column: auto;
+    grid-row: auto;
+}
+
+.regional-boxes.full > .regional-boxes-frame,
+.regional-boxes.full > .regional-boxes-pan2 {
+    grid-column: 1;
+    grid-row: 1 / -1;
+}
+
+.regional-boxes.full > .regional-boxes-frame {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    justify-self: center;
+    width: min(100%, calc((100dvh - 100px) * var(--regional-boxes-ratio, 1))) !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0;
+}
+
+.regional-boxes.full .regional-boxes-full-button {
+    display: none;
+}
+
+/* a phone: the frame on top, held there while the rows scroll under it */
+@media (max-width: 767px) {
+    .regional-boxes-overlay-bar {
+        padding: 6px 8px;
+        padding-top: max(6px, env(safe-area-inset-top));
+        gap: 6px;
+    }
+
+    .regional-boxes-overlay-size {
+        display: none;
+    }
+
+    .regional-boxes-overlay-body {
+        padding: 8px;
+    }
+
+    .regional-boxes.full {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .regional-boxes.full > .regional-boxes-frame {
+        order: -1;
+        z-index: 4;
+        flex: none;
+        width: min(100%, calc(48dvh * var(--regional-boxes-ratio, 1))) !important;
+        align-self: center;
+        /* a band of the page's background as wide as the screen, so the rows scrolling under the frame do not show
+           at its sides */
+        box-shadow: 0 0 0 100vw var(--body-background-fill, #0b0f19);
+        clip-path: inset(-8px -100vw -8px -100vw);
+    }
 }
 
 /* the boxes for "Marks on image", written by the panel; a hidden Gradio component would not be rendered at all */

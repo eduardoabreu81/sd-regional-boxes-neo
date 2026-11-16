@@ -173,6 +173,69 @@ const tests = {
         assert.deepEqual(second.items, [{label: "character", caption: "A cat.", bbox: [0, 0, 512, 512]}]);
     },
 
+    "MOSS: a box's tags, palette and other fields survive Read then Write, as do the summary's"() {
+        // as SillySilk's MOSS Layout writes it: tags and a palette on the boxes, a palette and a field of its own on the summary
+        const layout = '{"summary":{"meta":["poster"],"canvas":"single","caption":"A poster.","palette":["#1B9AAA"],"mood":"calm"},' +
+            '"items":[{"label":"character","caption":"A clerk","tags":["smiling","apron"],"palette":["#FF0000"],"bbox":[-512,-512,0,0]},' +
+            '{"label":"text","caption":"Title","text":"OPEN","bbox":[0,0,512,512]}],"bbox_coord_space":"abs_centralized","bbox_format":"yxyx"}';
+        const read = R.readMoss(layout, 1024, 1024);
+        assert.deepEqual(read.elements[0].tags, ["smiling", "apron"]);
+        assert.deepEqual(read.elements[0].keep, {palette: ["#FF0000"]});
+        assert.deepEqual(read.elements[1].tags, []);
+        assert.equal(read.elements[1].keep, undefined);
+        const again = R.writeMoss(layout, read.elements, 1024, 1024, {meta: R.parseMeta(read.meta), canvas: read.canvas});
+        assert.equal(again, layout);
+    },
+
+    "MOSS: a box's tags are written after its caption, trimmed and without repeats; none, no field"() {
+        const [tagged, plain] = JSON.parse(R.writeMoss("A street.", [
+            {label: "object", desc: "A lamp post.", tags: [" iron ", "", "Iron", "lit"], tgt: [0, 0, 500, 500]},
+            {label: "object", desc: "A bench.", tags: [], tgt: [500, 500, 1000, 1000]},
+        ], 1024, 1024, {})).items;
+        assert.deepEqual(Object.keys(tagged), ["label", "caption", "tags", "bbox"]);
+        assert.deepEqual(tagged.tags, ["iron", "lit"]);
+        assert.deepEqual(Object.keys(plain), ["label", "caption", "bbox"]);
+        // a kept field never overrides one the panel edits
+        const [item] = JSON.parse(R.writeMoss("A street.", [{label: "object", desc: "A cat.", keep: {caption: "old", bbox: [1], palette: ["#000000"]},
+            tgt: [0, 0, 500, 500]}], 1024, 1024, {})).items;
+        assert.deepEqual(item, {label: "object", caption: "A cat.", palette: ["#000000"], bbox: [-512, -512, 0, 0]});
+    },
+
+    "snap: the lines are the picture's edges and middle, the guides and the other boxes, never the box dragged"() {
+        const elements = [{tgt: [100, 200, 300, 400]}, {tgt: [600, 600, 800, 900], src: [0, 0, 50, 50]}];
+        const t = R.snapTargets(elements, {i: 0, which: "tgt"}, R.GUIDES.thirds);
+        assert.deepEqual(t.ys.map(Math.round), [0, 500, 1000, 333, 667, 600, 800, 700, 0, 50, 25]);
+        assert.deepEqual(t.xs.map(Math.round), [0, 500, 1000, 333, 667, 600, 900, 750, 0, 50, 25]);
+    },
+
+    "snap: a moved box lands on the nearest line by an edge or its middle, each axis apart; far away, it stays"() {
+        const targets = {ys: [0, 500, 1000], xs: [0, 500, 1000]};
+        // left edge 6 from 0, middle 4 from 500 down: the nearer one wins on each axis
+        const near = R.snapMove([496 - 50, 6, 496 + 50, 106], targets, [8, 8]);
+        assert.deepEqual(near.box, [450, 0, 550, 100]);
+        assert.deepEqual(near.lines, {y: [500], x: [0]});
+        const far = R.snapMove([200, 200, 300, 300], targets, [8, 8]);
+        assert.deepEqual(far.box, [200, 200, 300, 300]);
+        assert.deepEqual(far.lines, {y: [], x: []});
+    },
+
+    "snap: a corner being drawn or a handle lands on a line"() {
+        const s = R.snapPoint([333, 702], {ys: [1000 / 3], xs: [700]}, [5, 5]);
+        assert.deepEqual(s.point, [1000 / 3, 700]);
+        assert.deepEqual(R.snapPoint([10, 10], {ys: [500], xs: [500]}, [5, 5]).point, [10, 10]);
+    },
+
+    "zoom: the spot under the pointer stays there, and the picture always covers the frame"() {
+        const twice = R.zoomView({scale: 1, x: 0, y: 0}, 2, [0.25, 0.75]);
+        assert.deepEqual(twice, {scale: 2, x: -0.75, y: -0.25});
+        // the spot 3/4 across the picture, under the pointer at 3/4 across the frame, is still there at 2x
+        assert.equal(0.75 * twice.scale + twice.x, 0.75);
+        assert.equal(0.25 * twice.scale + twice.y, 0.25);
+        assert.deepEqual(R.zoomView(twice, 1, [0.5, 0.5]), {scale: 1, x: 0, y: 0});
+        assert.deepEqual(R.clampView({scale: 20, x: -50, y: 3}), {scale: 8, x: -7, y: 0});
+        assert.deepEqual(R.clampView({scale: 0.2, x: -1, y: -1}), {scale: 1, x: 0, y: 0});
+    },
+
     "MOSS layout without boxes turns back into its caption"() {
         const layout = R.writeMoss("A quiet lake.", [{label: "object", desc: "A boat.", tgt: [1, 1, 500, 500]}], 1024, 1024, {});
         assert.equal(R.writeMoss(layout, [], 1024, 1024, {}), "A quiet lake.");

@@ -316,10 +316,29 @@
         return mossLabel(el) !== "text" || !!String(el.text || "").trim();
     }
 
+    // the fields of a layout item the panel edits; any other one (a palette, from MOSS Layout or a hand-written layout)
+    // is kept as it was read and written back, so Read then Write loses nothing
+    const MOSS_ITEM_KEYS = ["label", "caption", "text", "tags", "bbox"];
+    const MOSS_SUMMARY_KEYS = ["meta", "canvas", "caption"];
+
+    // a box's tags (the item's "tags", keywords MOSS-Image follows closely): trimmed, without blanks or repeats
+    function mossTags(list) {
+        const seen = new Set();
+        return (Array.isArray(list) ? list : []).map((t) => String(t).trim()).filter((t) => {
+            const key = t.toLowerCase();
+            if (!t || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+    }
+
     function mossItem(el, w, h) {
         const label = mossLabel(el);
         const item = {label, caption: String(el.desc).trim()};
         if (label === "text") item.text = String(el.text);
+        const tags = mossTags(el.tags);
+        if (tags.length) item.tags = tags;
+        for (const [k, v] of Object.entries(el.keep || {})) if (!MOSS_ITEM_KEYS.includes(k)) item[k] = v;
         item.bbox = mossBox(el.tgt, w, h);
         return item;
     }
@@ -492,7 +511,8 @@
         if (Array.isArray(meta) && meta.length) summary.meta = meta;
         summary.canvas = MOSS_CANVASES.includes(options && options.canvas) ? options.canvas : before.canvas || "single";
         summary.caption = caption;
-        if (before.palette) summary.palette = before.palette;
+        // the summary's other fields (its palette...) stay as they were
+        for (const [k, v] of Object.entries(before)) if (!MOSS_SUMMARY_KEYS.includes(k)) summary[k] = v;
         return joinMoss(JSON.stringify({summary, items, bbox_coord_space: "abs_centralized", bbox_format: "yxyx"}), parts);
     }
 
@@ -501,9 +521,12 @@
         const layout = parseMoss(prompt);
         if (!layout) return null;
         const elements = layout.items.filter((o) => o && typeof o === "object" && Array.isArray(o.bbox) && o.bbox.length === 4)
-            .map((o, i) => ({id: `obj_${i + 1}`, kind: KINDS.place, label: MOSS_LABELS.includes(o.label) ? o.label : "object",
-                desc: String(o.caption || ""), text: o.text === undefined ? "" : String(o.text), tgt: gridBox(o.bbox, w, h),
-                src: null, ref: 0, color: i % PALETTE.length}));
+            .map((o, i) => {
+                const keep = Object.fromEntries(Object.entries(o).filter(([k]) => !MOSS_ITEM_KEYS.includes(k)));
+                return {id: `obj_${i + 1}`, kind: KINDS.place, label: MOSS_LABELS.includes(o.label) ? o.label : "object",
+                    desc: String(o.caption || ""), text: o.text === undefined ? "" : String(o.text), tags: mossTags(o.tags),
+                    ...(Object.keys(keep).length ? {keep} : {}), tgt: gridBox(o.bbox, w, h), src: null, ref: 0, color: i % PALETTE.length};
+            });
         const meta = Array.isArray(layout.summary.meta) ? layout.summary.meta.join(", ") : "";
         return {elements, meta, canvas: MOSS_CANVASES.includes(layout.summary.canvas) ? layout.summary.canvas : "single"};
     }
@@ -666,6 +689,71 @@
         const grid = gridBox(pixels, w, h);
         const kept = exactBox(box);
         return axis === "x" ? [kept[0], grid[1], kept[2], grid[3]] : [grid[0], kept[1], grid[2], kept[3]];
+    }
+
+    // ---- snapping: while a box is drawn, moved or resized, its edges and middle are drawn to the picture's edges and
+    // middle, the guides' lines and the other boxes' edges and middles; Alt leaves it free ----
+
+    // the lines a box can snap to, on the 0-1000 grid: ys across the picture, xs down it; skip {i, which} is the box
+    // being dragged, which never snaps to itself
+    function snapTargets(elements, skip, guides) {
+        const ys = [0, 500, 1000], xs = [0, 500, 1000];
+        for (const share of guides || []) {
+            ys.push(share * 1000);
+            xs.push(share * 1000);
+        }
+        (elements || []).forEach((e, i) => {
+            for (const which of ["tgt", "src"]) {
+                if (!e || !e[which] || (skip && skip.i === i && skip.which === which)) continue;
+                const [t, l, b, r] = exactBox(e[which]);
+                ys.push(t, b, (t + b) / 2);
+                xs.push(l, r, (l + r) / 2);
+            }
+        });
+        return {ys, xs};
+    }
+
+    // the target nearest to any of values, within tol: {shift, line}, or null
+    function nearestLine(values, targets, tol) {
+        let best = null;
+        for (const v of values) {
+            for (const t of targets) {
+                const d = t - v;
+                if (Math.abs(d) <= tol && (!best || Math.abs(d) < Math.abs(best.shift))) best = {shift: d, line: t};
+            }
+        }
+        return best;
+    }
+
+    // a box being moved, shifted onto the nearest line on each axis by its top, bottom or middle (y) and its left, right
+    // or middle (x); tol = [y, x] in grid units. lines: the lines it snapped to, to show them
+    function snapMove(box, targets, tol) {
+        const [t, l, b, r] = exactBox(box);
+        const y = nearestLine([t, b, (t + b) / 2], targets.ys, tol[0]);
+        const x = nearestLine([l, r, (l + r) / 2], targets.xs, tol[1]);
+        return {box: moveBox(box, y ? y.shift : 0, x ? x.shift : 0), lines: {y: y ? [y.line] : [], x: x ? [x.line] : []}};
+    }
+
+    // a point (the corner of a box being drawn, a handle being dragged) put on the nearest line on each axis
+    function snapPoint([py, px], targets, tol) {
+        const y = nearestLine([py], targets.ys, tol[0]), x = nearestLine([px], targets.xs, tol[1]);
+        return {point: [y ? y.line : py, x ? x.line : px], lines: {y: y ? [y.line] : [], x: x ? [x.line] : []}};
+    }
+
+    // ---- zoom: the view of the frame, a scale (1 = the whole picture) and the shift of the zoomed picture as a share of
+    // the frame (x, y from 1 - scale to 0, so the picture always covers the frame) ----
+    const ZOOM_MAX = 8;
+
+    function clampView({scale, x, y}) {
+        const s = Math.min(ZOOM_MAX, Math.max(1, Number(scale) || 1));
+        return {scale: s, x: Math.min(0, Math.max(1 - s, x)), y: Math.min(0, Math.max(1 - s, y))};
+    }
+
+    // the view zoomed to scale around [fy, fx] (a share of the frame): the spot of the picture there stays there
+    function zoomView(view, scale, [fy, fx]) {
+        const s = clampView({scale, x: 0, y: 0}).scale;
+        const u = (fx - view.x) / view.scale, v = (fy - view.y) / view.scale;
+        return clampView({scale: s, x: fx - u * s, y: fy - v * s});
     }
 
     // img2img's "Resize by" size, from Forge's own preview: "resize: from 1024x768 to 1536x1152"
@@ -927,7 +1015,8 @@
 
     const api = {KINDS, FORMATS, PALETTE, buildLayout, writeLayout, readLayout, findLayoutSpan, elementJson, isComplete,
         buildNotes, writeNotes, marksPayload, marksOf, MOSS_LABELS, MOSS_CANVASES, mossBox, gridBox, isMossComplete, mossTag, parseMoss,
-        mossParts, mossExtra, layoutStripped, mossCaption, parseMeta, writeMoss, readMoss, mossOutOfBounds, rescaleMoss, moveBox, resizeBox, centerBox, resizeByTarget, createHistory, GUIDES,
+        mossParts, mossExtra, layoutStripped, mossCaption, parseMeta, mossTags, writeMoss, readMoss, mossOutOfBounds, rescaleMoss, moveBox, resizeBox, centerBox, resizeByTarget, createHistory, GUIDES,
+        snapTargets, snapMove, snapPoint, clampView, zoomView,
         cardPrompt, hasNetwork, toggleNetwork,
         PAN2_CAMERA, pan2Id, pan2Duration, pan2Range, parsePan2Range, newPan2, pan2Object, buildPan2, parsePan2, pan2Parts, pan2Extra, readPan2,
         fitPan2, checkPan2, writePan2, resolveFormat};
@@ -975,6 +1064,17 @@
             return saved in GUIDES ? saved : "off";
         } catch (e) {
             return "off";
+        }
+    }
+
+    const SNAP_KEY = "regional-boxes-snap";
+
+    // whether the boxes snap to the lines (on unless turned off)
+    function savedSnap() {
+        try {
+            return localStorage.getItem(SNAP_KEY) !== "off";
+        } catch (e) {
+            return true;
         }
     }
 
@@ -1114,9 +1214,20 @@
     // A LoRA in an item's caption stays inside that item's box with the MOSS-Image extension 0.1.8+ (its setting
     // moss_image_regional_lora) or with SillySilk's MOSS Regional LoRA (moss_regional_lora); each setting is in Forge's
     // opts when its extension is installed
-    function regionalLoraTitle() {
+    function mossLoraSettings() {
         const o = forgeOpts();
-        const settings = [o.moss_image_regional_lora, o.moss_regional_lora].filter((v) => typeof v === "boolean");
+        return [o.moss_image_regional_lora, o.moss_regional_lora].filter((v) => typeof v === "boolean");
+    }
+
+    // whether a layout reaches MOSS-Image whole with sd-dynamic-prompts on: the MOSS-Image extension (0.1.2 and newer;
+    // seen by the setting 0.1.8 added) puts back the { } it takes out, and SillySilk's fork keeps them in its own copy
+    // of sd-dynamic-prompts
+    function mossKeepsLayout() {
+        return mossLoraSettings().length > 0;
+    }
+
+    function regionalLoraTitle() {
+        const settings = mossLoraSettings();
         if (settings.includes(true)) return "Add a LoRA to this box's description: it acts only inside this box";
         if (settings.length) {
             return "Add a LoRA to this box's description. Keeping LoRAs in their boxes is turned off in Settings → Stable Diffusion → "
@@ -1645,9 +1756,10 @@
         // last: txt2img shows its last picture behind the boxes; hidden: the boxes are hidden, to see the picture whole
         // which: the selected element's box the arrow keys move ("tgt", or "src" where it is in a reference)
         // guides: the composition guides over the frame (a key of GUIDES), remembered by the browser
+        // snap: the boxes snap to the lines while drawn, moved or resized (Alt leaves them free), remembered by the browser
         const state = {elements: [], selected: -1, armed: null, counter: 0, format: FORMATS.auto, draw: true,
             meta: "", canvas: "single", written: null, note: "", alert: "", caption: "", extra: "",
-            edited: {caption: false, extra: false}, last: true, hidden: false, which: "tgt", guides: savedGuides()};
+            edited: {caption: false, extra: false}, last: true, hidden: false, which: "tgt", guides: savedGuides(), snap: savedSnap()};
         let listedSize = "";
         const history = createHistory();
 
@@ -1677,6 +1789,20 @@
         }}, ...Object.keys(GUIDE_LABELS).map((k) => el("option", {value: k}, GUIDE_LABELS[k])));
         guideSelect.value = state.guides;
         const guideLabel = el("label", {class: "regional-boxes-draw"}, "Guides ", guideSelect);
+        const snapToggle = el("input", {type: "checkbox", checked: state.snap, onchange: (ev) => {
+            state.snap = ev.target.checked;
+            keep(SNAP_KEY, state.snap ? "on" : "off");
+        }});
+        const snapLabel = el("label", {class: "regional-boxes-draw",
+            title: "While a box is drawn, moved or resized, its edges and middle snap to the picture's edges and middle, the guides "
+                + "and the other boxes. Hold Alt to place it freely"}, snapToggle, " Snap");
+        // the same panel over the whole window (see openFull)
+        const fullButton = el("button", {class: "secondary gradio-button regional-boxes-full-button",
+            title: "Open the panel over the whole window: a bigger frame to draw on (Esc or ✕ brings it back)",
+            onclick: (ev) => {
+                ev.preventDefault();
+                openFull();
+            }}, "⛶ Full screen");
         // the picture behind the boxes, from faint to full strength; remembered by the browser
         const pictureRange = el("input", {type: "range", min: "0", max: "100", step: "5", value: String(savedPicture()),
             class: "regional-boxes-opacity", title: "How strong the picture behind the boxes is",
@@ -1691,8 +1817,8 @@
                 ev.preventDefault();
                 swapSize();
             }}, "⇅ W×H");
-        const top = el("div", {class: "regional-boxes-top"}, el("span", {}, "Format "), formatSelect, resolved, tab === "img2img" ? drawLabel : lastLabel,
-            hideLabel, guideLabel, pictureLabel, swapButton, mossOptions);
+        const top = el("div", {class: "regional-boxes-top"}, fullButton, el("span", {}, "Format "), formatSelect, resolved, tab === "img2img" ? drawLabel : lastLabel,
+            hideLabel, guideLabel, snapLabel, pictureLabel, swapButton, mossOptions);
         const sceneInput = el("textarea", {class: "regional-boxes-scene-text regional-boxes-ac", rows: "2",
             placeholder: "The whole picture in a sentence or two: who is there, doing what, where, in what light...",
             title: "The scene, the layout's caption (summary.caption)",
@@ -1707,12 +1833,25 @@
             el("label", {}, "Scene", suggesting(sceneInput)), el("label", {}, "Additional prompt", suggesting(extraInput), extraLora));
 
         const frame = el("div", {class: "regional-boxes-frame", title: "Drag to draw a box. The selected box: drag its tag to move it "
-            + "and its handles to resize it (Shift keeps its shape); the arrow keys move it, Delete removes it, Ctrl+D duplicates it, "
-            + "Esc lets it go. Ctrl+Z and Ctrl+Y undo and redo. Double-click a box to describe it."});
+            + "and its handles to resize it (Shift keeps its shape, Alt does not snap); the arrow keys move it, Delete removes it, "
+            + "Ctrl+D duplicates it, Esc lets it go. Ctrl+Z and Ctrl+Y undo and redo. Double-click a box to describe it. "
+            + "Zoom: Ctrl + wheel, or two fingers; move around: the middle button or Space + drag"});
         const background = el("img", {class: "regional-boxes-bg", draggable: "false", alt: ""});
         const guidesLayer = el("div", {class: "regional-boxes-guides"});
         const layer = el("div", {class: "regional-boxes-boxes"});
-        frame.append(background, guidesLayer, layer);
+        // the lines a box being dragged snapped to
+        const snapLayer = el("div", {class: "regional-boxes-snaps"});
+        // the picture and the boxes, zoomed and moved as one (see showView): the frame is the window onto them
+        const stage = el("div", {class: "regional-boxes-stage"}, background, guidesLayer, layer, snapLayer);
+        const zoomLabel = el("button", {class: "secondary gradio-button", title: "Back to the whole picture"}, "100%");
+        const zoomBar = el("div", {class: "regional-boxes-zoom"},
+            el("button", {class: "secondary gradio-button", title: "Zoom out (Ctrl + wheel, or two fingers)", onclick: () => zoomBy(1 / 1.5)}, "−"),
+            zoomLabel,
+            el("button", {class: "secondary gradio-button", title: "Zoom in (Ctrl + wheel, or two fingers)", onclick: () => zoomBy(1.5)}, "+"));
+        zoomLabel.addEventListener("click", () => setView({scale: 1, x: 0, y: 0}));
+        // a click on the zoom buttons draws no box
+        zoomBar.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+        frame.append(stage, zoomBar);
         const hint = el("div", {class: "regional-boxes-hint"});
         const warning = el("div", {class: "regional-boxes-warning"});
         const list = el("div", {class: "regional-boxes-list"});
@@ -1782,9 +1921,11 @@
         // the warnings the formats that write JSON share, then MOSS's own about the size
         function checkSize() {
             const lines = [];
-            if ((format() === FORMATS.coords || format() === FORMATS.moss) && dynamicPrompts()?.checked) {
+            // with MOSS-Image, the MOSS-Image extension puts the { } back before the model reads the layout: no warning
+            if (dynamicPrompts()?.checked && (format() === FORMATS.coords || (format() === FORMATS.moss && !mossKeepsLayout()))) {
                 lines.push("⚠ Dynamic Prompts is on: it removes the layout's { } before the model reads it, and the boxes can be lost. "
-                    + "Turn off Dynamic Prompts enabled in its accordion below.");
+                    + "Turn off Dynamic Prompts enabled in its accordion below"
+                    + (format() === FORMATS.moss ? ", or install the MOSS-Image extension (0.1.8 or newer), which puts them back." : "."));
             }
             const ta = prompt();
             if (ta && (format() === FORMATS.coords || format() === FORMATS.moss) && layoutStripped(ta.value)) {
@@ -1841,6 +1982,9 @@
             frame.style.aspectRatio = `${w} / ${h}`;
             // a tall picture hits the frame's max-height (640px, style.css) first: narrow it too, or it would lose its shape
             frame.style.maxWidth = `min(512px, ${Math.round(640 * w / h)}px)`;
+            // in full screen the frame fills the window instead, by this shape (style.css)
+            host.style.setProperty("--regional-boxes-ratio", String(w / h));
+            if (full) full.size.textContent = `${w}×${h}`;
             // the MOSS rows show pixels of the current size: rebuild them when it changes (only then, or the focus of the
             // field being clicked would be lost)
             if (`${w}x${h}` !== listedSize && format() === FORMATS.moss) renderList();
@@ -2099,8 +2243,13 @@
                 touch();
                 renderBoxes();
             }, regionalLoraTitle());
+            // the item's tags: keywords for this box, separated by commas; optional
+            const tags = el("input", {type: "text", class: "regional-boxes-tags regional-boxes-ac", value: mossTags(e.tags).join(", "),
+                placeholder: "Tags, optional: red scarf, smiling...",
+                title: "Keywords for this box, separated by commas (the item's tags): MOSS-Image follows them closely",
+                oninput: (ev) => { e.tags = mossTags(parseMeta(ev.target.value)); }});
             row.append(swatch, el("span", {class: "regional-boxes-number"}, String(i + 1)), label, suggesting(desc), lora,
-                text,
+                text, suggesting(tags),
                 el("button", {class: "secondary gradio-button", title: "Draw the box again", onclick: () => arm(i, "tgt")}, "Redraw"),
                 ...actions);
             if (e.tgt) row.append(mossCoords(e));
@@ -2225,6 +2374,7 @@
             start = null;
             if (ghost) ghost.remove();
             ghost = null;
+            showSnaps(null);
             state.selected = -1;
             state.armed = null;
             render();
@@ -2232,11 +2382,18 @@
 
         // the keys work after a click in the panel, until a click elsewhere, and not while typing in a field
         let engaged = false;
-        document.addEventListener("pointerdown", (ev) => { engaged = host.contains(ev.target); }, true);
+        document.addEventListener("pointerdown", (ev) => { engaged = host.contains(ev.target) || !!(full && full.overlay.contains(ev.target)); }, true);
         document.addEventListener("keydown", (ev) => {
-            if (!engaged || !host.offsetParent || format() === FORMATS.pan2) return;
+            if (!engaged || !host.offsetParent) return;
             const target = ev.target;
             if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+            // full screen: Esc lets the selected box go first, then closes; with PAN 2 too
+            if (ev.key === "Escape" && full && state.selected < 0 && !held && !start && !state.armed) {
+                ev.preventDefault();
+                closeFull();
+                return;
+            }
+            if (format() === FORMATS.pan2) return;
             const ctrl = ev.ctrlKey || ev.metaKey, key = ev.key.toLowerCase();
             const selected = state.selected >= 0 && state.selected < state.elements.length;
             if (ctrl && key === "z" && !ev.shiftKey) undo();
@@ -2246,9 +2403,20 @@
             else if ((key === "delete" || key === "backspace") && selected) remove(state.selected);
             else if (key === "escape") letGo();
             else if (key.startsWith("arrow") && selected) nudge(key, ev.shiftKey ? 10 : 1);
+            // Space held: a drag on the zoomed frame moves around the picture instead of drawing
+            else if (key === " " && view.scale > 1) holdSpace(true);
             else return;
             ev.preventDefault();
         });
+        document.addEventListener("keyup", (ev) => {
+            if (ev.key === " ") holdSpace(false);
+        });
+        window.addEventListener("blur", () => holdSpace(false));
+
+        function holdSpace(on) {
+            spaceHeld = on;
+            frame.classList.toggle("grab", on);
+        }
 
         // a double click (or tap) on a box takes the cursor to its description
         let lastTap = null;
@@ -2386,8 +2554,9 @@
             render();
         }
 
+        // where the pointer is on the picture, on the 0-1000 grid: measured on the stage, so it holds when zoomed
         function point(ev) {
-            const r = frame.getBoundingClientRect();
+            const r = stage.getBoundingClientRect();
             return [clamp(((ev.clientY - r.top) / r.height) * 1000), clamp(((ev.clientX - r.left) / r.width) * 1000)];
         }
 
@@ -2397,9 +2566,199 @@
         let held = null;
 
         function rawPoint(ev) {
-            const r = frame.getBoundingClientRect();
+            const r = stage.getBoundingClientRect();
             return [((ev.clientY - r.top) / r.height) * 1000, ((ev.clientX - r.left) / r.width) * 1000];
         }
+
+        // ---- snapping (snapTargets): on with the Snap box, off while Alt is held ----
+        const SNAP_PX = 6;
+
+        function snapping(ev) {
+            return state.snap && !ev.altKey && !state.hidden;
+        }
+
+        // how near counts, in grid units: a few pixels on screen, whatever the zoom
+        function tolerance() {
+            const r = stage.getBoundingClientRect();
+            return [SNAP_PX / Math.max(1, r.height) * 1000, SNAP_PX / Math.max(1, r.width) * 1000];
+        }
+
+        function lines(skip) {
+            return snapTargets(state.elements, skip, GUIDES[state.guides]);
+        }
+
+        // the lines snapped to, shown while the drag lasts; null clears them
+        function showSnaps(found) {
+            snapLayer.replaceChildren(...(found ? [
+                ...found.y.map((v) => el("div", {class: "regional-boxes-snap across", style: `top: ${v / 10}%`})),
+                ...found.x.map((v) => el("div", {class: "regional-boxes-snap down", style: `left: ${v / 10}%`})),
+            ] : []));
+        }
+
+        // a corner of a box being drawn, snapped
+        function drawPoint(ev) {
+            const p = point(ev);
+            if (!snapping(ev)) {
+                showSnaps(null);
+                return p;
+            }
+            const s = snapPoint(p, lines(null), tolerance());
+            showSnaps(s.lines);
+            return s.point;
+        }
+
+        // ---- zoom and moving around (zoomView): Ctrl + wheel or two fingers zoom; the middle button, Space + drag,
+        // two fingers or the wheel on a zoomed frame move around ----
+        let view = {scale: 1, x: 0, y: 0}, spaceHeld = false, panning = null, pinch = null;
+        const fingers = new Map();
+
+        function showView() {
+            const {scale, x, y} = view;
+            stage.style.transform = scale === 1 ? "" : `translate(${x * 100}%, ${y * 100}%) scale(${scale})`;
+            frame.style.setProperty("--regional-boxes-zoom", String(scale));
+            frame.classList.toggle("zoomed", scale > 1);
+            zoomLabel.textContent = `${Math.round(scale * 100)}%`;
+        }
+
+        function setView(next) {
+            view = clampView(next);
+            showView();
+        }
+
+        // a share of the frame, [y, x], from a spot on screen
+        function share(cx, cy) {
+            const r = frame.getBoundingClientRect();
+            return [(cy - r.top) / Math.max(1, r.height), (cx - r.left) / Math.max(1, r.width)];
+        }
+
+        // around the spot on screen cx, cy, else around the middle of the frame
+        function zoomBy(factor, cx, cy) {
+            setView(zoomView(view, view.scale * factor, cx === undefined ? [0.5, 0.5] : share(cx, cy)));
+        }
+
+        // moved by dx, dy pixels on screen; false when it was already at that edge
+        function panBy(dx, dy) {
+            const r = frame.getBoundingClientRect();
+            const before = `${view.x} ${view.y}`;
+            setView({...view, x: view.x + dx / Math.max(1, r.width), y: view.y + dy / Math.max(1, r.height)});
+            return `${view.x} ${view.y}` !== before;
+        }
+
+        frame.addEventListener("wheel", (ev) => {
+            if (format() === FORMATS.pan2) return;
+            // a trackpad's pinch comes as Ctrl + wheel; in full screen the wheel alone zooms too
+            if (ev.ctrlKey || ev.metaKey || full) {
+                ev.preventDefault();
+                zoomBy(Math.exp(-Math.max(-60, Math.min(60, ev.deltaY)) * 0.004), ev.clientX, ev.clientY);
+            } else if (view.scale > 1) {
+                // in the page, the wheel moves around a zoomed picture, and scrolls the page again at its edge
+                const dx = ev.shiftKey ? ev.deltaY : ev.deltaX, dy = ev.shiftKey ? 0 : ev.deltaY;
+                if (panBy(-dx, -dy)) ev.preventDefault();
+            }
+        }, {passive: false});
+
+        // drops a box being drawn, and puts back one being dragged: a pinch or a pan took the pointer over
+        function dropDrag() {
+            if (held) {
+                state.elements[held.i][held.which] = held.box;
+                held = null;
+                renderBoxes();
+            }
+            start = null;
+            if (ghost) ghost.remove();
+            ghost = null;
+            showSnaps(null);
+        }
+
+        // before the boxes' own handlers (capture): a pan with the middle button or Space, and a second finger, which
+        // turns a drag into a pinch
+        frame.addEventListener("pointerdown", (ev) => {
+            if (ev.pointerType === "touch") fingers.set(ev.pointerId, [ev.clientX, ev.clientY]);
+            if (fingers.size === 2) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                dropDrag();
+                const [a, b] = [...fingers.values()];
+                pinch = {dist: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, mid: share((a[0] + b[0]) / 2, (a[1] + b[1]) / 2), view: {...view}};
+                return;
+            }
+            if (ev.button === 1 || (ev.button === 0 && spaceHeld)) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                panning = {x: ev.clientX, y: ev.clientY};
+                frame.classList.add("panning");
+            }
+        }, true);
+        window.addEventListener("pointermove", (ev) => {
+            if (fingers.has(ev.pointerId)) fingers.set(ev.pointerId, [ev.clientX, ev.clientY]);
+            if (pinch && fingers.size === 2) {
+                const [a, b] = [...fingers.values()];
+                const mid = share((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+                const scale = clampView({scale: pinch.view.scale * Math.hypot(a[0] - b[0], a[1] - b[1]) / pinch.dist, x: 0, y: 0}).scale;
+                // the spot of the picture under the fingers when they landed stays under them
+                const u = (pinch.mid[1] - pinch.view.x) / pinch.view.scale, v = (pinch.mid[0] - pinch.view.y) / pinch.view.scale;
+                setView({scale, x: mid[1] - u * scale, y: mid[0] - v * scale});
+            } else if (panning) {
+                panBy(ev.clientX - panning.x, ev.clientY - panning.y);
+                panning = {x: ev.clientX, y: ev.clientY};
+            }
+        });
+        for (const type of ["pointerup", "pointercancel"]) {
+            window.addEventListener(type, (ev) => {
+                fingers.delete(ev.pointerId);
+                if (pinch && fingers.size < 2) pinch = null;
+                if (panning && (ev.button === 1 || ev.button === 0 || type === "pointercancel")) {
+                    panning = null;
+                    frame.classList.remove("panning");
+                }
+            });
+        }
+        // a middle click would scroll the page by itself
+        frame.addEventListener("auxclick", (ev) => ev.preventDefault());
+
+        // ---- full screen: the same panel moved over the whole window and back; nothing is rebuilt, so the boxes,
+        // undo and the fields stay as they are. The phone's Back button closes it ----
+        let full = null;
+
+        function openFull() {
+            if (full) return;
+            const placeholder = document.createComment("regional-boxes");
+            host.before(placeholder);
+            const size = el("span", {class: "regional-boxes-overlay-size"});
+            const bar = el("div", {class: "regional-boxes-overlay-bar"},
+                el("strong", {}, "Regional Boxes"), el("span", {class: "regional-boxes-overlay-tab"}, tab), size,
+                el("span", {class: "regional-boxes-overlay-gap"}),
+                el("button", {class: "lg primary gradio-button", title: "Write the boxes into the prompt", onclick: () => write()}, "Write to prompt"),
+                el("button", {class: "lg secondary gradio-button", title: "Back to the panel in the page (Esc)", onclick: () => closeFull()}, "✕"));
+            const body = el("div", {class: "regional-boxes-overlay-body"});
+            const overlay = el("div", {class: "regional-boxes-overlay", role: "dialog", "aria-label": "Regional Boxes"}, bar, body);
+            body.append(host);
+            (app.querySelector(".gradio-container") || document.body).append(overlay);
+            host.classList.add("full");
+            document.documentElement.classList.add("regional-boxes-locked");
+            full = {overlay, placeholder, size, pushed: false};
+            try {
+                history.pushState({regionalBoxes: tab}, "");
+                full.pushed = true;
+            } catch (e) {
+                // no history (a sandboxed page): only ✕ and Esc close it
+            }
+            fitFrame();
+        }
+
+        function closeFull(fromHistory) {
+            if (!full) return;
+            const {overlay, placeholder, pushed} = full;
+            full = null;
+            host.classList.remove("full");
+            placeholder.replaceWith(host);
+            overlay.remove();
+            document.documentElement.classList.remove("regional-boxes-locked");
+            if (!fromHistory && pushed && history.state && history.state.regionalBoxes === tab) history.back();
+            fitFrame();
+        }
+
+        window.addEventListener("popstate", () => closeFull(true));
 
         function grab(ev, i, which, mode) {
             // a second finger on a touch screen is not primary: it would take a box while another is held
@@ -2417,28 +2776,46 @@
             if (ev.button !== 0 || !ev.isPrimary || state.hidden) return;
             ev.preventDefault();
             fitFrame();
-            start = point(ev);
+            start = drawPoint(ev);
             ghost = el("div", {class: "regional-boxes-box ghost"});
             layer.append(ghost);
         });
         window.addEventListener("pointermove", (ev) => {
-            if (!ev.isPrimary) return;
+            if (!ev.isPrimary || pinch) return;
             if (held) {
                 const [y, x] = rawPoint(ev);
-                state.elements[held.i][held.which] = held.mode === "move"
-                    ? moveBox(held.box, Math.round(y - held.from[0]), Math.round(x - held.from[1]))
-                    : resizeBox(held.box, held.mode, [clamp(y), clamp(x)], ev.shiftKey);
+                const skip = {i: held.i, which: held.which};
+                let box;
+                if (held.mode === "move") {
+                    box = moveBox(held.box, Math.round(y - held.from[0]), Math.round(x - held.from[1]));
+                    if (snapping(ev)) {
+                        const s = snapMove(box, lines(skip), tolerance());
+                        box = s.box;
+                        showSnaps(s.lines);
+                    } else showSnaps(null);
+                } else {
+                    let p = [clamp(y), clamp(x)];
+                    if (snapping(ev)) {
+                        const s = snapPoint(p, lines(skip), tolerance());
+                        p = s.point;
+                        // a side handle moves one edge: only the line across it counts
+                        showSnaps({y: /^[ew]$/.test(held.mode) ? [] : s.lines.y, x: /^[ns]$/.test(held.mode) ? [] : s.lines.x});
+                    } else showSnaps(null);
+                    box = resizeBox(held.box, held.mode, p, ev.shiftKey);
+                }
+                state.elements[held.i][held.which] = box;
                 renderBoxes();
                 return;
             }
             if (!start || !ghost) return;
-            const [t, l, b, r] = normBox([...start, ...point(ev)]);
+            const [t, l, b, r] = normBox([...start, ...drawPoint(ev)]);
             Object.assign(ghost.style, {top: `${t / 10}%`, left: `${l / 10}%`, height: `${(b - t) / 10}%`, width: `${(r - l) / 10}%`});
         });
         // the browser or the system took the touch (a gesture, a notification): no pointerup follows, so the box
         // held goes back to where it was and a box being drawn is dropped
         window.addEventListener("pointercancel", (ev) => {
             if (!ev.isPrimary) return;
+            showSnaps(null);
             if (held) {
                 state.elements[held.i][held.which] = held.box;
                 held = null;
@@ -2452,6 +2829,7 @@
         window.addEventListener("pointerup", (ev) => {
             if (!ev.isPrimary) return;
             if (held) {
+                showSnaps(null);
                 const {i, which, box, before} = held;
                 const changed = JSON.stringify(state.elements[i][which]) !== JSON.stringify(box);
                 if (changed) {
@@ -2464,7 +2842,8 @@
                 return;
             }
             if (!start) return;
-            const box = normBox([...start, ...point(ev)]);
+            const box = normBox([...start, ...drawPoint(ev)]);
+            showSnaps(null);
             start = null;
             if (ghost) ghost.remove();
             ghost = null;

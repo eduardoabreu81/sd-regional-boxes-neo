@@ -4,7 +4,7 @@
 
 [![Forge Neo](https://img.shields.io/badge/Forge-Neo-blue)](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)
 [![Gradio](https://img.shields.io/badge/Gradio-4.40.0-orange)](https://gradio.app/)
-[![Version](https://img.shields.io/badge/Version-0.4.1-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
+[![Version](https://img.shields.io/badge/Version-0.5.0-brightgreen)](https://github.com/eduardoabreu81/sd-regional-boxes-neo)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
 
 > **Extension for [Stable Diffusion WebUI Forge - Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)**
@@ -33,6 +33,15 @@ For the **PAN 2** video model, the panel becomes a **timeline of the clip**: lay
 ---
 
 ## 🆕 What's New
+
+### v0.5.0 - Full Screen, Zoom, Snap and Tags per Box
+
+- **⛶ Full screen** - the same panel over the whole window: the frame as big as the screen lets it be, the boxes' rows beside it, **Write to prompt** at the top; Esc or ✕ brings it back to its place, with the boxes, undo and the fields as they were. On a phone the frame stays on top while the rows scroll under it, and the Back button closes it
+- **Zoom** - Ctrl + wheel (or a trackpad's pinch), two fingers on a touch screen, or **− 100% +** on the frame; in full screen the wheel alone zooms. Move around with the middle button, Space + drag, two fingers, or the wheel on a zoomed frame. Boxes drawn while zoomed land where you drew them
+- **Snap** - while a box is drawn, moved or resized, its edges and middle snap to the picture's edges and middle, the guides and the other boxes, with a line to show it; hold **Alt** to place it freely, or turn **Snap** off
+- **Tags** for each MOSS-Image box - keywords the model follows closely (the item's `tags`), next to its description
+- **Read from prompt keeps what the panel has no field for** - a palette on a box or on the scene, and any other field, as [MOSS Layout](https://github.com/SillySilk/sd-forge-moss-layout) writes them: Read then Write no longer drops them
+- **No Dynamic Prompts warning with MOSS-Image** when the MOSS-Image extension 0.1.8 or newer is installed, since it puts the layout's `{ }` back; without it the warning says to install it or turn Dynamic Prompts off
 
 ### v0.4.1 - LoRAs Kept in Their Boxes
 
@@ -156,6 +165,8 @@ For the **PAN 2** video model, the panel becomes a **timeline of the clip**: lay
 
 - Describe the whole picture in **Scene** (or as the prompt), then draw a box for each thing and each piece of text
 - For each box, choose what it holds - **object**, **character** or **text** - and say how it looks; a text box also takes the exact words to write, with Enter for a new line
+- **Tags** add keywords to a box (*red scarf, smiling*), separated by commas - optional; MOSS-Image follows them closely
+- Fields the panel does not edit, such as a palette from [MOSS Layout](https://github.com/SillySilk/sd-forge-moss-layout), are kept through **Read from prompt** and **Write to prompt**
 - **Meta** says what kind of picture it is (*poster, flat illustration*, *product photo*...), and **Canvas** whether it is one picture, panels or a collage
 - **Write to prompt** turns it all into [MOSS-Image's layout](https://github.com/OpenMOSS/MOSS-Image/blob/main/USERGUIDE.md#layout-prompts-experimental), the way OpenMOSS's own tools write it; Scene becomes the layout's caption
 - Under each box, its edges in pixels from the center of the picture, as the layout uses them - type a number to set an edge exactly
@@ -187,6 +198,9 @@ For the **PAN 2** video model, the panel becomes a **timeline of the clip**: lay
 
 ### ✏️ Editing the Boxes
 
+- **⛶ Full screen** opens the panel over the whole window, with a bigger frame; Esc or ✕ (or Back on a phone) puts it back
+- **Zoom** with Ctrl + wheel, two fingers or **− 100% +**, and move around with the middle button, Space + drag or two fingers; **100%** shows the whole picture again
+- **Snap** draws a box's edges and middle to the picture's edges and middle, the guides and the other boxes; hold **Alt** to place it freely
 - **↶ Undo** and **↷ Redo** (Ctrl+Z, Ctrl+Y) for drawing, moving, resizing, deleting and the fields of each box
 - Resize the selected box by its corners or sides; hold **Shift** to keep its shape
 - **⧉** duplicates a box (Ctrl+D); Delete removes it, Esc lets it go, the arrow keys move it one step (ten with Shift)
@@ -198,7 +212,7 @@ For the **PAN 2** video model, the panel becomes a **timeline of the clip**: lay
 ### 🛡️ Safe by Design
 
 - Changes no Forge Neo file and adds no generation setting of its own
-- Works with **sd-dynamic-prompts** installed, and warns while it is on with FLUX 3 and MOSS-Image, since it breaks their layouts
+- Works with **sd-dynamic-prompts** installed, and warns while it is on with FLUX 3, and with MOSS-Image without the MOSS-Image extension, since it breaks their layouts
 - The infotext records which boxes were drawn
 
 ---
@@ -253,12 +267,13 @@ For edits, use img2img with **Denoising strength** 1 and the model's reference o
 - With MOSS-Image, each box's tag on the frame shows its words or the start of its description, so you can tell the boxes apart over the last picture
 - With Tag Autocomplete installed, the panel's description fields complete tags, LoRAs and wildcards too
 - Click a box without dragging to select it; **Redraw** draws it again; ✕ deletes it
-- On a touch screen, drag with one finger as you would with the mouse; to scroll the page, swipe outside the frame
+- On a touch screen, drag with one finger as you would with the mouse, and zoom or move around with two; to scroll the page, swipe outside the frame - or open **⛶ Full screen**
+- Zoom in to place small boxes, such as a line of text, precisely; the boxes' lines and tags keep their size on screen
 - Writing again replaces the boxes already in the prompt, so draw, adjust and write as often as you like
 - The frame takes the shape of your **Width** and **Height**
 - MOSS-Image layouts are in pixels of the picture's size, so a new size moves the boxes in the prompt with it; if you changed the boxes' numbers by hand in the prompt, they are left as they are and the panel asks you to **Write to prompt** again
 - With MOSS-Image, write the scene description in English for the best results, and give text boxes room for their words
-- Turn off **Dynamic Prompts enabled** (sd-dynamic-prompts) when you use FLUX 3 or MOSS-Image layouts: it removes the layout's `{ }` before the model reads it, and the boxes are lost. The panel warns you while it is on; **Read from prompt** still reads a layout that lost its braces, and **Write to prompt** puts them back
+- Turn off **Dynamic Prompts enabled** (sd-dynamic-prompts) when you use FLUX 3 layouts, or MOSS-Image layouts without the [MOSS-Image extension](https://github.com/eduardoabreu81/moss-image-forge-neo): it removes the layout's `{ }` before the model reads it, and the boxes are lost. The panel warns you while it is on; **Read from prompt** still reads a layout that lost its braces, and **Write to prompt** puts them back
 
 ---
 
@@ -271,6 +286,8 @@ For edits, use img2img with **Denoising strength** 1 and the model's reference o
 - **[PAN 2](https://huggingface.co/IFM/PAN2)** by the Institute of Foundation Models (IFM), MBZUAI - the structured description and its prompt guide
 - **[BBox Studio](https://github.com/Haoming02/sd-webui-forge-classic/discussions/1625)** - the ideas for undo, side handles, duplicate, keys and guides
 - **[SillySilk's JSON Builder](https://github.com/Haoming02/sd-webui-forge-classic/discussions/1645)** ([Forge-Neo-Silk-Custom](https://github.com/SillySilk/Forge-Neo-Silk-Custom)) - MOSS Regional LoRA, and the ideas for the LoRA picker, the picture strength, the box type on the frame and the selected box in front
+- **[MOSS Layout](https://github.com/SillySilk/sd-forge-moss-layout)** by SillySilk - the tags and palettes on the boxes, and the idea for snapping
+- **[Forge Neo's improved JSON Builder](https://github.com/Haoming02/sd-webui-forge-classic/pull/1649)** by Haoming02 - the idea for zooming and moving around the frame
 - **[ersatzForge](https://github.com/DenOfEquity/ersatzForge)** by DenOfEquity - the idea for the Width/Height swap
 
 ---
